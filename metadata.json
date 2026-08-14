@@ -1,0 +1,6 @@
+{
+  "name": "Conferência Expedição QR",
+  "description": "Sistema PWA offline para geração de QR Code comprimido de expedição de sementes e conferência ágil no armazém por celular.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
