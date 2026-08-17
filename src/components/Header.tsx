@@ -13,7 +13,9 @@ import {
   History,
   LogOut,
   ShieldAlert,
-  ShieldCheck
+  ShieldCheck,
+  KeyRound,
+  Users
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -43,7 +45,8 @@ export const Header: React.FC<HeaderProps> = ({
       case 'conferencia': return 'Conferência de Carga';
       case 'historico': return 'Expedições Salvas';
       case 'importar': return 'Importar Lotes';
-      case 'configuracoes': return 'Configurações & Usuários';
+      case 'configuracoes': return 'Configurações & Backup';
+      case 'usuarios': return 'Gerenciar Acessos (Usuários)';
       default: return 'Conferência Expedição QR';
     }
   };
@@ -145,11 +148,22 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
+          {currentScreen !== 'usuarios' && (
+            <button
+              onClick={() => onNavigate('usuarios')}
+              className="p-2 text-slate-300 hover:text-emerald-400 hover:bg-slate-800 rounded-lg transition-colors"
+              title="Criar e Gerenciar Acessos (Nome e Senha)"
+              id="btn-header-usuarios"
+            >
+              <KeyRound className="w-5 h-5" />
+            </button>
+          )}
+
           {currentScreen !== 'configuracoes' && (
             <button
               onClick={() => onNavigate('configuracoes')}
               className="p-2 text-slate-300 hover:text-emerald-400 hover:bg-slate-800 rounded-lg transition-colors"
-              title="Configurações e Usuários"
+              title="Configurações e Backup"
               id="btn-header-configuracoes"
             >
               <Settings className="w-5 h-5" />

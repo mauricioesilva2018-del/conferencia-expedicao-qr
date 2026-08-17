@@ -32,7 +32,10 @@ import {
   AlertTriangle,
   Tag,
   Sprout,
-  Calendar
+  Calendar,
+  Sparkles,
+  ClipboardList,
+  CheckCheck
 } from 'lucide-react';
 
 interface ConferenceScreenProps {
@@ -58,23 +61,25 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
 }) => {
   // Input search state
   const [lotInput, setLotInput] = useState('');
-  const [searchFeedback, setSearchFeedback] = useState<{
-    status: 'idle' | 'lote_conferido' | 'lote_ja_conferido' | 'lote_nao_encontrado';
+  
+  // Active Consultation State
+  const [consultResult, setConsultResult] = useState<{
+    status: 'idle' | 'found_pending' | 'already_checked' | 'not_found' | 'success_registered';
     loteItem?: LoteItem;
+    searchedCode?: string;
     message?: string;
-    divergenceCode?: string;
   }>({ status: 'idle' });
 
-  // Filter state: 'todos' | 'pendentes' | 'conferidos' | 'divergencias'
-  const [filterMode, setFilterMode] = useState<'todos' | 'pendentes' | 'conferidos' | 'divergencias'>('pendentes');
-  const [searchTerm, setSearchTerm] = useState('');
+  // Tab View Mode: 'conferir' (Main Flow) | 'realizadas' (Conferências Realizadas) | 'pendentes' | 'divergencias'
+  const [activeTab, setActiveTab] = useState<'conferir' | 'realizadas' | 'pendentes' | 'divergencias'>('conferir');
+  const [searchTableTerm, setSearchTableTerm] = useState('');
 
   // Finalization Modal State
   const [isFinalizeModalOpen, setIsFinalizeModalOpen] = useState(false);
   const [isFinalizedBanner, setIsFinalizedBanner] = useState(expedition?.status === 'finalizada');
 
-  // Input ref for quick focus
-  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  // Input ref for auto-focus
+  const lotInputRef = useRef<HTMLInputElement | null>(null);
 
   // Stats calculation
   const lotes = expedition?.lotes || [];
@@ -90,6 +95,15 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
   const percentConferido = totalLotes > 0 ? Math.round((totalConferidos / totalLotes) * 100) : 0;
   const is100Percent = totalLotes > 0 && totalConferidos === totalLotes;
 
+  // Auto-focus input on mount or tab change
+  useEffect(() => {
+    if (activeTab === 'conferir') {
+      setTimeout(() => {
+        lotInputRef.current?.focus();
+      }, 100);
+    }
+  }, [activeTab]);
+
   // Trigger celebration on 100% complete
   useEffect(() => {
     if (is100Percent && expedition?.status !== 'finalizada') {
@@ -103,58 +117,60 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
     }
   }, [is100Percent]);
 
-  // Evaluate scanned or typed code
-  const handleProcessCode = (rawVal: string) => {
-    const clean = rawVal.trim().toUpperCase();
-    if (!clean) {
-      setSearchFeedback({ status: 'idle' });
+  // Handle consultation of a lot
+  const handleConsultLot = (rawVal?: string) => {
+    const codeToSearch = (rawVal !== undefined ? rawVal : lotInput).trim().toUpperCase();
+    
+    if (!codeToSearch) {
+      setConsultResult({ status: 'idle' });
+      lotInputRef.current?.focus();
       return;
     }
 
     if (!expedition) return;
 
-    // Use unified decoder in case input is JSON or Pipe Delimited or plain lot code
-    const decoded = decodeScannedCode(rawVal);
-    let targetLotCode = clean;
-    let decodedLotExtra: Partial<LoteItem> = {};
+    // Decode in case it was scanned or typed with formatting
+    const decoded = decodeScannedCode(codeToSearch);
+    let targetLotCode = codeToSearch;
 
     if (decoded.type === 'lot') {
       targetLotCode = decoded.lot.lote.toUpperCase();
-      decodedLotExtra = decoded.lot;
     } else if (decoded.type === 'raw_code') {
       targetLotCode = decoded.code.toUpperCase();
     }
 
-    // Search exact match in expedition
+    // Search in registered expedition lots database
     const matched = expedition.lotes.find(l => l.lote.toUpperCase() === targetLotCode);
 
     if (matched) {
       if (matched.conferido) {
-        // LOTE JÁ CONFERIDO
-        setSearchFeedback({
-          status: 'lote_ja_conferido',
+        // 11. LOTE JÁ CONFERIDO
+        setConsultResult({
+          status: 'already_checked',
           loteItem: matched,
-          message: `Lote ${matched.lote} já foi conferido em ${matched.conferidoEm ? new Date(matched.conferidoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''} por ${matched.conferidoPor || 'Operador'}.`,
+          searchedCode: targetLotCode,
+          message: `Lote ${matched.lote} já foi conferido anteriormente.`,
         });
         playWarningSound(settings.somAtivado);
         triggerHaptic('warning', settings.vibracaoAtivada);
       } else {
-        // LOTE CONFERIDO -> Auto execute conference registration
-        executeCheckLot(matched.lote, decodedLotExtra);
+        // 4. LOTE EXISTE E ESTÁ PENDENTE -> Exibir dados para conferência física
+        setConsultResult({
+          status: 'found_pending',
+          loteItem: matched,
+          searchedCode: targetLotCode,
+        });
+        playSuccessSound(settings.somAtivado);
+        triggerHaptic('success', settings.vibracaoAtivada);
       }
     } else {
-      // LOTE NÃO ENCONTRADO / NÃO PERTENCE A ESTA EXPEDIÇÃO
+      // 12. LOTE NÃO EXISTE NA BASE DE DADOS DA EXPEDIÇÃO
       const newDivergence: DivergenciaItem = {
         id: `div-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         loteLido: targetLotCode,
         dataHora: new Date().toISOString(),
         operador: operatorName || 'Operador Armazém',
-        motivo: 'Lote não pertence a esta expedição',
-        cultura: decodedLotExtra.cultura,
-        cultivar: decodedLotExtra.cultivar,
-        peneira: decodedLotExtra.peneira,
-        categoria: decodedLotExtra.categoria,
-        peso: decodedLotExtra.peso,
+        motivo: 'Lote não encontrado na carga',
       };
 
       const updatedDivergencias = [newDivergence, ...(expedition.divergencias || [])];
@@ -165,33 +181,30 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
       };
       onUpdateExpedition(updatedExpedition);
 
-      setSearchFeedback({
-        status: 'lote_nao_encontrado',
-        divergenceCode: targetLotCode,
-        message: `⚠️ LOTE NÃO PERTENCE A ESTA EXPEDIÇÃO!`,
+      setConsultResult({
+        status: 'not_found',
+        searchedCode: targetLotCode,
+        message: 'Verifique o número digitado.',
       });
       playErrorSound(settings.somAtivado);
       triggerHaptic('error', settings.vibracaoAtivada);
     }
   };
 
-  const executeCheckLot = (loteCode: string, extra?: Partial<LoteItem>) => {
-    if (!expedition) return;
+  // 9. When operator clicks "✅ CONFERIDO"
+  const handleConfirmConference = () => {
+    if (!expedition || !consultResult.loteItem) return;
 
+    const targetLot = consultResult.loteItem.lote.toUpperCase();
     const checkTimestamp = new Date().toISOString();
     const currentOperator = operatorName || 'Operador Armazém';
 
     let checkedItem: LoteItem | undefined;
 
     const updatedLotes = expedition.lotes.map(l => {
-      if (l.lote.toUpperCase() === loteCode.toUpperCase()) {
+      if (l.lote.toUpperCase() === targetLot) {
         checkedItem = {
           ...l,
-          cultura: l.cultura || extra?.cultura,
-          cultivar: l.cultivar || extra?.cultivar,
-          peneira: l.peneira || extra?.peneira || '',
-          categoria: l.categoria || extra?.categoria || '',
-          peso: l.peso || extra?.peso || 0,
           conferido: true,
           conferidoEm: checkTimestamp,
           conferidoPor: currentOperator,
@@ -212,19 +225,22 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
     playSuccessSound(settings.somAtivado);
     triggerHaptic('success', settings.vibracaoAtivada);
 
-    // Show immediate lot data feedback: LOTE CONFERIDO
+    // 10. Mostrar "✅ LOTE CONFERIDO COM SUCESSO" e limpar o campo para o próximo lote
     setLotInput('');
-    setSearchFeedback({
-      status: 'lote_conferido',
+    setConsultResult({
+      status: 'success_registered',
       loteItem: checkedItem,
-      message: `Lote ${loteCode} conferido com sucesso!`,
+      searchedCode: targetLot,
+      message: `Lote ${targetLot} conferido com sucesso!`,
     });
 
-    if (searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
+    // Automatically focus back on input for next lot
+    setTimeout(() => {
+      lotInputRef.current?.focus();
+    }, 150);
   };
 
+  // Undo conference
   const handleUncheckLot = (loteCode: string) => {
     if (!expedition) return;
     if (settings.confirmarDesfazer) {
@@ -254,7 +270,11 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
 
     onUpdateExpedition(updatedExpedition);
     playWarningSound(settings.somAtivado);
-    setSearchFeedback({ status: 'idle' });
+    
+    // Reset consultation state
+    setConsultResult({ status: 'idle' });
+    setLotInput('');
+    lotInputRef.current?.focus();
   };
 
   const handleClearDivergencias = () => {
@@ -292,25 +312,6 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
     });
   };
 
-  // Filtered displayed lots
-  const displayedLotes = lotes.filter(item => {
-    if (filterMode === 'pendentes' && item.conferido) return false;
-    if (filterMode === 'conferidos' && !item.conferido) return false;
-    if (filterMode === 'divergencias') return false; // Handled separately
-
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      return (
-        item.lote.toLowerCase().includes(term) ||
-        item.peneira.toLowerCase().includes(term) ||
-        item.categoria.toLowerCase().includes(term) ||
-        (item.cultura && item.cultura.toLowerCase().includes(term)) ||
-        (item.cultivar && item.cultivar.toLowerCase().includes(term))
-      );
-    }
-    return true;
-  });
-
   if (!expedition) {
     return (
       <div className="p-4 sm:p-6 max-w-xl mx-auto space-y-6 text-center">
@@ -338,19 +339,35 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
     );
   }
 
+  // Filtered lists for tabs
+  const realizedList = lotes
+    .filter(l => l.conferido)
+    .filter(item => {
+      if (!searchTableTerm) return true;
+      const term = searchTableTerm.toLowerCase();
+      return (
+        item.lote.toLowerCase().includes(term) ||
+        item.peneira.toLowerCase().includes(term) ||
+        item.categoria.toLowerCase().includes(term) ||
+        (item.conferidoPor && item.conferidoPor.toLowerCase().includes(term))
+      );
+    });
+
+  const pendingList = lotes
+    .filter(l => !l.conferido)
+    .filter(item => {
+      if (!searchTableTerm) return true;
+      const term = searchTableTerm.toLowerCase();
+      return (
+        item.lote.toLowerCase().includes(term) ||
+        item.peneira.toLowerCase().includes(term) ||
+        item.categoria.toLowerCase().includes(term)
+      );
+    });
+
   return (
     <div className="p-3 sm:p-5 max-w-3xl mx-auto space-y-3.5 pb-24">
-      {/* Big QR Scanner Button (As explicitly requested) */}
-      <button
-        onClick={onOpenBatchCamera}
-        className="w-full bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white font-black py-3.5 px-4 rounded-2xl shadow-md border-2 border-emerald-500/50 flex items-center justify-center gap-3 text-sm sm:text-base tracking-wide transition-all active:scale-[0.99]"
-        id="btn-conferencia-ler-qr-top"
-      >
-        <span className="text-xl">📷</span>
-        <span>LER QR CODE / CÓDIGO DE BARRAS</span>
-      </button>
-
-      {/* CONTROLE DE EXPEDIÇÃO DASHBOARD CARD */}
+      {/* EXPEDITION SUMMARY DASHBOARD */}
       <div className="bg-slate-900 text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-slate-800 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -362,18 +379,17 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-bold bg-slate-800 px-2 py-1 rounded-lg">
+          <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-bold bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700">
             <User className="w-3.5 h-3.5" />
-            <span className="truncate max-w-[110px]">{operatorName || 'Operador'}</span>
+            <span className="truncate max-w-[120px]">{operatorName || 'Operador'}</span>
           </div>
         </div>
 
-        {/* 5-Metric Expedition Control Grid */}
+        {/* 4-Metric Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-          {/* 1. Total de Lotes */}
           <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
             <span className="text-[10px] font-bold text-slate-400 block uppercase">
-              Total de Lotes
+              Total Lotes
             </span>
             <div className="text-xl font-black font-mono text-white mt-0.5">
               {totalLotes}
@@ -383,7 +399,6 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
             </span>
           </div>
 
-          {/* 2. Conferidos */}
           <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
             <span className="text-[10px] font-bold text-emerald-400 block uppercase">
               Conferidos
@@ -396,7 +411,6 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
             </span>
           </div>
 
-          {/* 3. Pendentes */}
           <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
             <span className="text-[10px] font-bold text-amber-400 block uppercase">
               Pendentes
@@ -409,7 +423,6 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
             </span>
           </div>
 
-          {/* 4. Divergências */}
           <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
             <span className="text-[10px] font-bold text-red-400 block uppercase">
               Divergências
@@ -418,15 +431,15 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
               {totalDivergencias}
             </div>
             <span className="text-[10px] text-red-300 block font-mono">
-              {totalDivergencias > 0 ? 'Não cadastrados' : 'Nenhuma'}
+              {totalDivergencias > 0 ? 'Não cadastrados' : '0 erros'}
             </span>
           </div>
         </div>
 
-        {/* Percentual de Conclusão */}
-        <div className="space-y-1.5 pt-1">
+        {/* Progress Bar */}
+        <div className="space-y-1 pt-1">
           <div className="flex justify-between items-center text-xs font-bold font-mono">
-            <span className="text-slate-300">Conclusão da Carga:</span>
+            <span className="text-slate-300">Progresso da Carga:</span>
             <span className="text-emerald-400 text-sm font-black">{percentConferido}%</span>
           </div>
           <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden p-0.5 border border-slate-700">
@@ -437,23 +450,23 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
           </div>
         </div>
 
-        {/* 100% Banner when complete */}
+        {/* 100% Completed Banner */}
         {is100Percent && !isFinalizedBanner && (
-          <div className="bg-emerald-500 text-slate-950 p-3 rounded-xl font-black text-center text-sm sm:text-base flex items-center justify-center gap-2 animate-pulse shadow-md">
+          <div className="bg-emerald-500 text-slate-950 p-3 rounded-xl font-black text-center text-sm sm:text-base flex items-center justify-center gap-2 shadow-md animate-pulse">
             <span>🟢</span>
             <span>EXPEDIÇÃO 100% CONFERIDA! PRONTA PARA FINALIZAR</span>
           </div>
         )}
 
         {isFinalizedBanner && (
-          <div className="bg-emerald-600 text-white p-3.5 rounded-xl font-black text-center text-sm sm:text-base flex items-center justify-between gap-2 shadow-md">
+          <div className="bg-emerald-600 text-white p-3 rounded-xl font-black text-center text-xs sm:text-sm flex items-center justify-between gap-2 shadow-md">
             <div className="flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-emerald-200" />
-              <span>🟢 EXPEDIÇÃO LIBERADA PARA CARREGAMENTO</span>
+              <ShieldCheck className="w-4 h-4 text-emerald-200" />
+              <span>EXPEDIÇÃO FINALIZADA E LIBERADA</span>
             </div>
             <button
               onClick={() => onPrintReleaseTerms(expedition)}
-              className="bg-slate-950 hover:bg-slate-900 text-emerald-300 text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 font-bold border border-emerald-400/40"
+              className="bg-slate-950 hover:bg-slate-900 text-emerald-300 text-xs px-2.5 py-1 rounded-lg flex items-center gap-1 font-bold border border-emerald-400/40"
               id="btn-imprimir-termo-liberacao"
             >
               <Printer className="w-3.5 h-3.5" />
@@ -463,256 +476,516 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
         )}
       </div>
 
-      {/* SEARCH / BARCODE SCANNER BOX */}
-      <div className="bg-white border-2 border-slate-300 focus-within:border-emerald-500 rounded-2xl p-3 sm:p-4 shadow-sm space-y-3">
-        <label className="block text-xs sm:text-sm font-black text-slate-800 uppercase tracking-tight">
-          🔍 Digite ou escaneie o número do lote
-        </label>
+      {/* NAVIGATION TABS */}
+      <div className="flex bg-slate-200 p-1 rounded-2xl text-xs font-bold gap-1 overflow-x-auto shadow-inner">
+        <button
+          onClick={() => { setActiveTab('conferir'); setSearchTableTerm(''); }}
+          className={`flex-1 py-2.5 px-3 rounded-xl text-center transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${
+            activeTab === 'conferir'
+              ? 'bg-slate-900 text-white font-black shadow-md'
+              : 'text-slate-700 hover:text-slate-900'
+          }`}
+          id="tab-conferir-lote"
+        >
+          <Search className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Digitar Lote</span>
+        </button>
 
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={lotInput}
-              onChange={e => setLotInput(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && lotInput.trim()) {
-                  handleProcessCode(lotInput);
-                }
-              }}
-              placeholder="Ex: 1MG1260001"
-              autoCapitalize="characters"
-              autoCorrect="off"
-              spellCheck={false}
-              className="w-full bg-slate-100 focus:bg-white border-2 border-slate-300 focus:border-emerald-500 rounded-xl px-3.5 py-3 text-slate-900 font-mono font-black text-base sm:text-lg uppercase tracking-wider focus:outline-none transition-all"
-              id="input-pesquisa-lote"
-            />
-            {lotInput && (
-              <button
-                type="button"
-                onClick={() => { setLotInput(''); setSearchFeedback({ status: 'idle' }); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            )}
-          </div>
+        <button
+          onClick={() => { setActiveTab('realizadas'); setSearchTableTerm(''); }}
+          className={`flex-1 py-2.5 px-3 rounded-xl text-center transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${
+            activeTab === 'realizadas'
+              ? 'bg-emerald-600 text-white font-black shadow-md'
+              : 'text-slate-700 hover:text-slate-900'
+          }`}
+          id="tab-conferencias-realizadas"
+        >
+          <CheckCheck className="w-3.5 h-3.5" />
+          <span>Conferências Realizadas ({totalConferidos})</span>
+        </button>
 
+        <button
+          onClick={() => { setActiveTab('pendentes'); setSearchTableTerm(''); }}
+          className={`py-2.5 px-3 rounded-xl text-center transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${
+            activeTab === 'pendentes'
+              ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+              : 'text-slate-700 hover:text-slate-900'
+          }`}
+          id="tab-lotes-pendentes"
+        >
+          <span>Pendentes ({totalPendentes})</span>
+        </button>
+
+        {totalDivergencias > 0 && (
           <button
-            type="button"
-            onClick={() => {
-              if (lotInput.trim()) {
-                handleProcessCode(lotInput);
-              } else {
-                onOpenBatchCamera();
-              }
-            }}
-            className="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold px-4 py-3 rounded-xl flex items-center justify-center gap-1.5 shadow transition-transform active:scale-95 flex-shrink-0"
-            title="Escanear com a câmera ou confirmar código digitado"
-            id="btn-escanear-lote-camera"
+            onClick={() => { setActiveTab('divergencias'); setSearchTableTerm(''); }}
+            className={`py-2.5 px-3 rounded-xl text-center transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${
+              activeTab === 'divergencias'
+                ? 'bg-red-600 text-white font-black shadow-md'
+                : 'text-red-700 hover:text-red-900'
+            }`}
+            id="tab-divergencias"
           >
-            <Camera className="w-5 h-5" />
-            <span className="text-xs font-black">{lotInput.trim() ? 'VALIDAR' : 'CÂMERA'}</span>
+            <span>Divergências ({totalDivergencias})</span>
           </button>
-        </div>
-
-        {/* Real-time Validation Feedback Box: Exact Requested Requirement 4 & 6 */}
-        {searchFeedback.status === 'lote_conferido' && searchFeedback.loteItem && (
-          <div className="bg-emerald-50 border-2 border-emerald-500 rounded-2xl p-4 space-y-3 animate-in fade-in zoom-in-95 duration-150 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-600 text-white flex items-center gap-1.5 shadow-sm">
-                <Check className="w-4 h-4 stroke-[3]" />
-                LOTE CONFERIDO
-              </span>
-              <span className="font-mono text-xs text-emerald-800 font-bold">
-                {new Date(searchFeedback.loteItem.conferidoEm || Date.now()).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </span>
-            </div>
-
-            {/* Complete Data of the Lot */}
-            <div className="bg-white rounded-xl p-3 border border-emerald-200 shadow-inner space-y-2 text-xs text-slate-800">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                <span className="text-slate-500 font-semibold">Nº do Lote:</span>
-                <span className="font-mono font-black text-slate-900 text-base">{searchFeedback.loteItem.lote}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>Peneira: <strong className="text-slate-900 font-mono">{searchFeedback.loteItem.peneira || 'N/D'}</strong></div>
-                <div>Categoria: <strong className="text-slate-900">{searchFeedback.loteItem.categoria || 'N/D'}</strong></div>
-                <div>Peso: <strong className="text-slate-900 font-mono">{searchFeedback.loteItem.peso} kg</strong></div>
-                <div>Cultura: <strong className="text-slate-900">{searchFeedback.loteItem.cultura || 'N/D'}</strong></div>
-              </div>
-              {searchFeedback.loteItem.cultivar && (
-                <div className="border-t border-slate-100 pt-1">
-                  Cultivar / Híbrido: <strong className="text-slate-900">{searchFeedback.loteItem.cultivar}</strong>
-                </div>
-              )}
-              <div className="text-[11px] text-emerald-700 font-semibold pt-1 border-t border-slate-100 flex items-center justify-between">
-                <span>Operador: <strong>{searchFeedback.loteItem.conferidoPor || operatorName}</strong></span>
-                <span>Status: <strong className="text-emerald-700">CONFERIDO</strong></span>
-              </div>
-            </div>
-          </div>
         )}
+      </div>
 
-        {searchFeedback.status === 'lote_ja_conferido' && searchFeedback.loteItem && (
-          <div className="bg-amber-50 border-2 border-amber-400 rounded-2xl p-4 space-y-3 animate-in fade-in duration-150 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-500 text-slate-950 flex items-center gap-1.5 shadow-sm">
-                <AlertTriangle className="w-4 h-4" />
-                LOTE JÁ CONFERIDO
-              </span>
-              <span className="font-mono font-black text-slate-900 text-base">
-                {searchFeedback.loteItem.lote}
-              </span>
-            </div>
-
-            <div className="bg-white rounded-xl p-3 border border-amber-200 text-xs text-slate-800 space-y-1.5">
-              <p className="text-amber-900 font-medium">
-                {searchFeedback.message}
-              </p>
-              <div className="grid grid-cols-2 gap-1 text-[11px] text-slate-600 pt-1 border-t border-slate-100">
-                <span>Peneira: <strong>{searchFeedback.loteItem.peneira}</strong></span>
-                <span>Peso: <strong>{searchFeedback.loteItem.peso} kg</strong></span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => handleUncheckLot(searchFeedback.loteItem!.lote)}
-              className="text-xs bg-white hover:bg-amber-100 text-amber-900 font-bold py-2 px-3 rounded-xl border border-amber-300 flex items-center justify-center gap-1.5 w-full"
+      {/* ======================================================== */}
+      {/* TAB 1: MAIN CONFERÊNCIA POR DIGITAÇÃO DO NÚMERO DO LOTE */}
+      {/* ======================================================== */}
+      {activeTab === 'conferir' && (
+        <div className="space-y-3.5">
+          {/* Main Large Input Card: Optimized for Android & Fast Warehouse Entry */}
+          <div className="bg-white border-2 border-slate-300 focus-within:border-emerald-500 rounded-3xl p-4 sm:p-5 shadow-sm space-y-3 transition-all">
+            {/* 1. Large Label: "Digite o número do lote" */}
+            <label 
+              htmlFor="input-numero-lote"
+              className="block text-sm sm:text-base font-black text-slate-900 uppercase tracking-tight"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Desfazer conferência (marcar como pendente)
-            </button>
-          </div>
-        )}
+              Digite o número do lote
+            </label>
 
-        {searchFeedback.status === 'lote_nao_encontrado' && (
-          <div className="bg-red-600 text-white rounded-2xl p-4 space-y-2.5 shadow-lg animate-bounce duration-300">
-            <div className="flex items-center gap-2 font-black text-sm sm:text-base">
-              <AlertOctagon className="w-6 h-6 flex-shrink-0" />
-              <span>⚠️ LOTE NÃO PERTENCE A ESTA EXPEDIÇÃO</span>
-            </div>
-            <div className="bg-red-700/80 rounded-xl p-3 text-xs space-y-1 text-red-50">
-              <div>Código lido: <strong className="font-mono text-white text-sm">"{searchFeedback.divergenceCode || lotInput}"</strong></div>
-              <div>Status: <strong className="text-red-200">LOTE NÃO ENCONTRADO NA CARGA</strong></div>
-              <p className="text-[11px] text-red-200 pt-1">
-                Registrado automaticamente na lista de divergências da expedição #{expedition.numero}.
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
+            {/* 2. Big Input Field with Example: 1MG1260001 */}
+            <div className="relative">
+              <input
+                ref={lotInputRef}
+                id="input-numero-lote"
+                type="text"
+                value={lotInput}
+                onChange={e => {
+                  setLotInput(e.target.value);
+                  if (consultResult.status !== 'idle') {
+                    // Reset alert as operator types a new number
+                    setConsultResult({ status: 'idle' });
+                  }
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleConsultLot();
+                  }
+                }}
+                placeholder="Ex: 1MG1260001"
+                autoCapitalize="characters"
+                autoCorrect="off"
+                autoComplete="off"
+                spellCheck={false}
+                className="w-full bg-slate-50 focus:bg-white border-2 border-slate-300 focus:border-emerald-600 rounded-2xl px-4 py-4 text-slate-950 font-mono font-black text-xl sm:text-2xl uppercase tracking-wider focus:outline-none focus:ring-4 focus:ring-emerald-500/20 transition-all shadow-inner"
+              />
 
-      {/* FILTER TABS & SEARCH */}
-      <div className="space-y-2">
-        <div className="flex bg-slate-200 p-1 rounded-xl text-xs font-bold gap-1 overflow-x-auto">
-          <button
-            onClick={() => setFilterMode('pendentes')}
-            className={`py-2 px-3 rounded-lg text-center transition-all whitespace-nowrap ${
-              filterMode === 'pendentes'
-                ? 'bg-amber-500 text-slate-950 font-black shadow-sm'
-                : 'text-slate-700 hover:text-slate-900'
-            }`}
-          >
-            🟡 Pendentes ({totalPendentes})
-          </button>
-
-          <button
-            onClick={() => setFilterMode('conferidos')}
-            className={`py-2 px-3 rounded-lg text-center transition-all whitespace-nowrap ${
-              filterMode === 'conferidos'
-                ? 'bg-emerald-600 text-white font-black shadow-sm'
-                : 'text-slate-700 hover:text-slate-900'
-            }`}
-          >
-            🟢 Conferidos ({totalConferidos})
-          </button>
-
-          <button
-            onClick={() => setFilterMode('divergencias')}
-            className={`py-2 px-3 rounded-lg text-center transition-all whitespace-nowrap ${
-              filterMode === 'divergencias'
-                ? 'bg-red-600 text-white font-black shadow-sm'
-                : 'text-slate-700 hover:text-slate-900'
-            }`}
-          >
-            🔴 Divergências ({totalDivergencias})
-          </button>
-
-          <button
-            onClick={() => setFilterMode('todos')}
-            className={`py-2 px-3 rounded-lg text-center transition-all whitespace-nowrap ${
-              filterMode === 'todos'
-                ? 'bg-slate-900 text-white font-black shadow-sm'
-                : 'text-slate-700 hover:text-slate-900'
-            }`}
-          >
-            Todos ({totalLotes})
-          </button>
-        </div>
-
-        {filterMode !== 'divergencias' && (
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              placeholder="Filtrar por lote, peneira, cultura, cultivar..."
-              className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-800"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* DIVERGÊNCIAS VIEW */}
-      {filterMode === 'divergencias' && (
-        <div className="space-y-2">
-          {divergencias.length === 0 ? (
-            <div className="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200">
-              <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-1.5" />
-              <div className="font-bold text-slate-800">Nenhuma divergência registrada</div>
-              <p className="text-xs text-slate-500">Todos os códigos lidos até o momento pertencem à carga desta expedição.</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex justify-between items-center px-1">
-                <span className="text-xs font-bold text-red-700">
-                  {divergencias.length} tentativa(s) de lote inválido:
-                </span>
+              {lotInput && (
                 <button
                   type="button"
-                  onClick={handleClearDivergencias}
-                  className="text-xs text-slate-500 hover:text-red-700 underline"
+                  onClick={() => {
+                    setLotInput('');
+                    setConsultResult({ status: 'idle' });
+                    lotInputRef.current?.focus();
+                  }}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-slate-800 active:scale-95"
+                  title="Limpar campo"
                 >
-                  Limpar divergências
+                  <X className="w-6 h-6" />
                 </button>
+              )}
+            </div>
+
+            {/* 3. Big Action Buttons: "CONSULTAR LOTE" & "CÂMERA" */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => handleConsultLot()}
+                disabled={!lotInput.trim()}
+                className="sm:col-span-2 bg-slate-900 hover:bg-slate-800 active:bg-slate-950 disabled:bg-slate-300 disabled:text-slate-500 text-white font-black py-4 px-5 rounded-2xl shadow-md flex items-center justify-center gap-2.5 text-base sm:text-lg transition-transform active:scale-[0.99] cursor-pointer disabled:cursor-not-allowed"
+                id="btn-consultar-lote"
+              >
+                <Search className="w-5 h-5 text-emerald-400" />
+                <span>CONSULTAR LOTE</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onOpenBatchCamera}
+                className="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 font-bold py-4 px-4 rounded-2xl border-2 border-slate-200 flex items-center justify-center gap-2 text-sm sm:text-base transition-colors"
+                title="Escanear código de barras com a câmera"
+                id="btn-abrir-camera-conferencia"
+              >
+                <Camera className="w-5 h-5 text-emerald-600" />
+                <span>CÂMERA</span>
+              </button>
+            </div>
+          </div>
+
+          {/* ======================================================== */}
+          {/* 4 & 5 & 6 & 7 & 8: SE O LOTE EXISTIR E ESTIVER PENDENTE */}
+          {/* ======================================================== */}
+          {consultResult.status === 'found_pending' && consultResult.loteItem && (
+            <div className="bg-white border-3 border-emerald-500 rounded-3xl p-4 sm:p-6 shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+              {/* Badge: Lote Encontrado */}
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-900 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
+                  LOTE LOCALIZADO NA EXPEDIÇÃO #{expedition.numero}
+                </span>
+                <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                  STATUS: PENDENTE
+                </span>
               </div>
 
-              {divergencias.map((divItem) => (
+              {/* 5. Número do Lote em Grande Destaque */}
+              <div className="text-center py-2 bg-slate-900 text-white rounded-2xl p-4 shadow-inner">
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-400 block mb-1">
+                  NÚMERO DO LOTE
+                </span>
+                <div className="font-mono font-black text-2xl sm:text-4xl text-emerald-400 tracking-wider">
+                  {consultResult.loteItem.lote}
+                </div>
+              </div>
+
+              {/* 4. Complete Lot Details */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs text-slate-800">
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <span className="text-[11px] font-bold text-slate-500 block uppercase">Peso</span>
+                  <strong className="text-base font-black text-slate-900 font-mono">
+                    {consultResult.loteItem.peso.toLocaleString('pt-BR')} kg
+                  </strong>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <span className="text-[11px] font-bold text-slate-500 block uppercase">Peneira</span>
+                  <strong className="text-base font-black text-slate-900 font-mono">
+                    {consultResult.loteItem.peneira || 'N/D'}
+                  </strong>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <span className="text-[11px] font-bold text-slate-500 block uppercase">Categoria</span>
+                  <strong className="text-base font-black text-slate-900">
+                    {consultResult.loteItem.categoria || 'N/D'}
+                  </strong>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <span className="text-[11px] font-bold text-slate-500 block uppercase">Cultura / Híbrido</span>
+                  <strong className="text-sm font-black text-slate-900 truncate block">
+                    {consultResult.loteItem.cultivar || consultResult.loteItem.cultura || 'Padrão'}
+                  </strong>
+                </div>
+              </div>
+
+              {/* 6. Message: "CONFIRA FISICAMENTE OS DADOS DA ETIQUETA" */}
+              <div className="bg-amber-500/15 border-2 border-amber-500 rounded-2xl p-3.5 text-center flex items-center justify-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                <span className="font-black text-xs sm:text-sm text-amber-950 uppercase tracking-wide">
+                  CONFIRA FISICAMENTE OS DADOS DA ETIQUETA
+                </span>
+              </div>
+
+              {/* 7 & 8. Big "✅ CONFERIDO" Button */}
+              <button
+                type="button"
+                onClick={handleConfirmConference}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-black py-4 sm:py-5 px-6 rounded-2xl shadow-xl flex items-center justify-center gap-3 text-lg sm:text-xl transition-all active:scale-[0.98] ring-4 ring-emerald-500/30"
+                id="btn-confirmar-lote-conferido"
+              >
+                <Check className="w-7 h-7 stroke-[3.5]" />
+                <span>CONFERIDO</span>
+              </button>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* 10. SUCESSO: "✅ LOTE CONFERIDO COM SUCESSO" */}
+          {/* ======================================================== */}
+          {consultResult.status === 'success_registered' && consultResult.loteItem && (
+            <div className="bg-emerald-600 text-white rounded-3xl p-5 shadow-xl space-y-3 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white text-emerald-600 flex items-center justify-center flex-shrink-0 font-black shadow">
+                  <Check className="w-6 h-6 stroke-[3.5]" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base sm:text-lg tracking-tight">
+                    ✅ LOTE CONFERIDO COM SUCESSO
+                  </h3>
+                  <p className="text-xs text-emerald-100">
+                    Registrado na base de dados. Digite o próximo lote acima.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-emerald-700/80 rounded-2xl p-3 text-xs space-y-1.5 text-emerald-50 font-medium">
+                <div className="flex justify-between border-b border-emerald-600/60 pb-1 font-mono">
+                  <span>Lote:</span>
+                  <strong className="text-white font-black text-sm">{consultResult.loteItem.lote}</strong>
+                </div>
+                <div className="flex justify-between border-b border-emerald-600/60 pb-1">
+                  <span>Data e Hora:</span>
+                  <strong className="text-white">
+                    {consultResult.loteItem.conferidoEm ? new Date(consultResult.loteItem.conferidoEm).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR')}
+                  </strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Operador:</span>
+                  <strong className="text-white">{consultResult.loteItem.conferidoPor || operatorName}</strong>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* 11. AVISO: "⚠️ LOTE JÁ CONFERIDO" */}
+          {/* ======================================================== */}
+          {consultResult.status === 'already_checked' && consultResult.loteItem && (
+            <div className="bg-amber-50 border-3 border-amber-400 rounded-3xl p-4 sm:p-5 shadow-lg space-y-3.5 animate-in fade-in duration-150">
+              <div className="flex items-center gap-2 text-amber-900">
+                <AlertTriangle className="w-6 h-6 text-amber-600 flex-shrink-0" />
+                <h3 className="font-black text-base sm:text-lg">
+                  ⚠️ LOTE JÁ CONFERIDO
+                </h3>
+              </div>
+
+              {/* Destaque do Lote */}
+              <div className="bg-white rounded-2xl p-4 border border-amber-200 shadow-sm space-y-2 text-xs text-slate-800">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                  <span className="text-slate-500 font-bold uppercase">Número do Lote:</span>
+                  <span className="font-mono font-black text-slate-900 text-lg">{consultResult.loteItem.lote}</span>
+                </div>
+
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Data e Hora da Conferência:</span>
+                    <strong className="font-mono text-slate-900 font-bold">
+                      {consultResult.loteItem.conferidoEm
+                        ? new Date(consultResult.loteItem.conferidoEm).toLocaleString('pt-BR')
+                        : 'Previamente registrado'}
+                    </strong>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Operador Responsável:</span>
+                    <strong className="text-slate-900">
+                      {consultResult.loteItem.conferidoPor || 'Operador'}
+                    </strong>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Peso / Peneira / Categoria:</span>
+                    <strong className="text-slate-900 font-mono">
+                      {consultResult.loteItem.peso} kg &middot; {consultResult.loteItem.peneira} &middot; {consultResult.loteItem.categoria}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Desfazer Botão */}
+              <button
+                type="button"
+                onClick={() => handleUncheckLot(consultResult.loteItem!.lote)}
+                className="w-full bg-white hover:bg-amber-100 active:bg-amber-200 text-amber-950 font-bold py-3 px-4 rounded-xl border-2 border-amber-300 flex items-center justify-center gap-2 text-xs transition-colors"
+                id="btn-desfazer-conferencia-aviso"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Desfazer conferência deste lote (marcar como pendente)
+              </button>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* 12. ERRO: "❌ LOTE NÃO ENCONTRADO" */}
+          {/* ======================================================== */}
+          {consultResult.status === 'not_found' && (
+            <div className="bg-red-600 text-white rounded-3xl p-5 shadow-xl space-y-3 animate-in shake duration-300">
+              <div className="flex items-center gap-3">
+                <AlertOctagon className="w-7 h-7 flex-shrink-0" />
+                <div>
+                  <h3 className="font-black text-base sm:text-lg tracking-tight">
+                    ❌ LOTE NÃO ENCONTRADO
+                  </h3>
+                  <p className="text-xs text-red-100 font-bold">
+                    Verifique o número digitado.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-red-700/80 rounded-2xl p-3.5 text-xs space-y-1 text-red-50">
+                <div>Código pesquisado: <strong className="font-mono text-white text-sm font-black">"{consultResult.searchedCode || lotInput}"</strong></div>
+                <p className="text-[11px] text-red-200 pt-1">
+                  Este lote não consta na lista da expedição #{expedition.numero}. Registrado na aba de divergências para auditoria.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Quick Help for Operator */}
+          {consultResult.status === 'idle' && (
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-600 flex items-center gap-3">
+              <ClipboardList className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+              <span>
+                Digite o número gravado no saco/bag e clique em <strong>CONSULTAR LOTE</strong> para conferir os dados da etiqueta física.
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 2: SEÇÃO "CONFERÊNCIAS REALIZADAS" (Requirement 16) */}
+      {/* ======================================================== */}
+      {activeTab === 'realizadas' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="relative flex-1 mr-2">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchTableTerm}
+                onChange={e => setSearchTableTerm(e.target.value)}
+                placeholder="Filtrar por lote, peneira ou operador..."
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200 whitespace-nowrap">
+              {realizedList.length} Conferido(s)
+            </span>
+          </div>
+
+          {realizedList.length === 0 ? (
+            <div className="bg-white rounded-3xl p-8 text-center text-slate-400 border border-slate-200 space-y-2">
+              <Clock className="w-10 h-10 text-slate-300 mx-auto" />
+              <div className="font-bold text-slate-700">Nenhuma conferência realizada ainda</div>
+              <p className="text-xs text-slate-500">
+                Vá para a aba "Digitar Lote" para iniciar as verificações da carga.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
+              {realizedList.map((item, idx) => {
+                const confDate = item.conferidoEm ? new Date(item.conferidoEm) : null;
+                return (
+                  <div
+                    key={`${item.lote}-${idx}`}
+                    className="bg-white border-2 border-emerald-200 rounded-2xl p-3.5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div className="space-y-1 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-black text-base sm:text-lg text-slate-900">
+                          {item.lote}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900 flex items-center gap-1">
+                          <Check className="w-3 h-3 stroke-[3]" />
+                          CONFERIDO
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                        <span className="bg-slate-100 px-2 py-0.5 rounded font-mono font-bold text-slate-800">
+                          {item.peso.toLocaleString('pt-BR')} kg
+                        </span>
+                        <span className="bg-slate-100 px-2 py-0.5 rounded">
+                          Peneira: <strong className="text-slate-800">{item.peneira}</strong>
+                        </span>
+                        <span className="bg-slate-100 px-2 py-0.5 rounded">
+                          Cat: <strong className="text-slate-800">{item.categoria}</strong>
+                        </span>
+                      </div>
+
+                      {confDate && (
+                        <div className="text-[11px] text-emerald-800 flex flex-wrap items-center gap-x-3 gap-y-0.5 pt-0.5 font-medium">
+                          <span>📅 Data: <strong>{confDate.toLocaleDateString('pt-BR')}</strong></span>
+                          <span>⏰ Hora: <strong>{confDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</strong></span>
+                          <span>👤 Operador: <strong>{item.conferidoPor || operatorName}</strong></span>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleUncheckLot(item.lote)}
+                      className="bg-slate-50 hover:bg-red-50 text-slate-600 hover:text-red-700 font-bold text-xs py-2 px-3 rounded-xl border border-slate-200 hover:border-red-200 flex items-center justify-center gap-1 transition-colors self-end sm:self-center"
+                      title="Desfazer conferência deste lote"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Desfazer
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 3: LOTES PENDENTES */}
+      {/* ======================================================== */}
+      {activeTab === 'pendentes' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="relative flex-1 mr-2">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchTableTerm}
+                onChange={e => setSearchTableTerm(e.target.value)}
+                placeholder="Filtrar pendentes..."
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+            <span className="text-xs font-bold text-amber-800 bg-amber-50 px-3 py-2 rounded-xl border border-amber-200 whitespace-nowrap">
+              {pendingList.length} Pendente(s)
+            </span>
+          </div>
+
+          {pendingList.length === 0 ? (
+            <div className="bg-white rounded-3xl p-8 text-center text-slate-400 border border-slate-200 space-y-2">
+              <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
+              <div className="font-bold text-slate-800">Nenhum lote pendente!</div>
+              <p className="text-xs text-slate-500">
+                Todos os {totalLotes} lotes da expedição foram conferidos.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
+              {pendingList.map((item, idx) => (
                 <div
-                  key={divItem.id}
-                  className="bg-red-50 border-2 border-red-300 rounded-2xl p-3.5 space-y-1.5 shadow-sm"
+                  key={`${item.lote}-${idx}`}
+                  className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="space-y-1 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono font-black text-red-950 text-base">
-                        {divItem.loteLido}
+                      <span className="font-mono font-black text-base sm:text-lg text-slate-900">
+                        {item.lote}
                       </span>
-                      <span className="text-[10px] font-black bg-red-200 text-red-900 px-2 py-0.5 rounded-full">
-                        NÃO PERTENCE À CARGA
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                        PENDENTE
                       </span>
                     </div>
-                    <span className="text-xs text-red-700 font-mono">
-                      {new Date(divItem.dataHora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
+
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                      <span className="bg-slate-100 px-2 py-0.5 rounded font-mono font-bold text-slate-800">
+                        {item.peso.toLocaleString('pt-BR')} kg
+                      </span>
+                      <span className="bg-slate-100 px-2 py-0.5 rounded">
+                        Peneira: <strong className="text-slate-800">{item.peneira}</strong>
+                      </span>
+                      <span className="bg-slate-100 px-2 py-0.5 rounded">
+                        Cat: <strong className="text-slate-800">{item.categoria}</strong>
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-600 flex flex-wrap gap-x-3 gap-y-0.5">
-                    <span>Operador: <strong>{divItem.operador}</strong></span>
-                    <span>Data: <strong>{new Date(divItem.dataHora).toLocaleDateString('pt-BR')}</strong></span>
-                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLotInput(item.lote);
+                      setActiveTab('conferir');
+                      handleConsultLot(item.lote);
+                    }}
+                    className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 px-4 rounded-xl flex items-center justify-center gap-1.5 self-end sm:self-center shadow"
+                  >
+                    <Search className="w-3.5 h-3.5 text-emerald-400" />
+                    Conferir Este
+                  </button>
                 </div>
               ))}
             </div>
@@ -720,110 +993,50 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
         </div>
       )}
 
-      {/* LOTS LIST: Hand-friendly Cards for Mobile Operation */}
-      {filterMode !== 'divergencias' && (
-        <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-          {displayedLotes.length === 0 ? (
-            <div className="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200">
-              {filterMode === 'pendentes' && totalPendentes === 0 ? (
-                <div className="space-y-1">
-                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
-                  <div className="font-bold text-slate-800">Nenhum lote pendente!</div>
-                  <div className="text-xs">Todos os {totalLotes} lotes já foram conferidos com sucesso.</div>
-                </div>
-              ) : (
-                <div>Nenhum lote encontrado com os filtros atuais.</div>
-              )}
-            </div>
-          ) : (
-            displayedLotes.map((item, idx) => {
-              const isChecked = Boolean(item.conferido);
-              return (
-                <div
-                  key={`${item.lote}-${idx}`}
-                  className={`border-2 rounded-2xl p-3 sm:p-3.5 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm ${
-                    isChecked
-                      ? 'bg-emerald-50/70 border-emerald-400/80 text-emerald-950'
-                      : 'bg-white border-slate-200 hover:border-slate-400 text-slate-900'
-                  }`}
-                >
-                  {/* Lote Info Section */}
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-black text-base sm:text-lg tracking-tight">
-                        {item.lote}
-                      </span>
-                      <span
-                        className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${
-                          isChecked
-                            ? 'bg-emerald-200 text-emerald-900'
-                            : 'bg-amber-100 text-amber-900 border border-amber-300'
-                        }`}
-                      >
-                        {isChecked ? '🟢 CONFERIDO' : '🟡 PENDENTE'}
-                      </span>
-                    </div>
+      {/* ======================================================== */}
+      {/* TAB 4: DIVERGÊNCIAS */}
+      {/* ======================================================== */}
+      {activeTab === 'divergencias' && (
+        <div className="space-y-3">
+          <div className="flex justify-between items-center px-1">
+            <span className="text-xs font-bold text-red-700">
+              {divergencias.length} tentativa(s) de lote inválido:
+            </span>
+            <button
+              type="button"
+              onClick={handleClearDivergencias}
+              className="text-xs text-slate-500 hover:text-red-700 underline"
+            >
+              Limpar divergências
+            </button>
+          </div>
 
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                      <span className="bg-slate-100 px-2 py-0.5 rounded font-medium">
-                        Peneira: <strong className="text-slate-900">{item.peneira}</strong>
-                      </span>
-                      <span className="bg-slate-100 px-2 py-0.5 rounded font-medium">
-                        Cat: <strong className="text-slate-900">{item.categoria}</strong>
-                      </span>
-                      <span className="bg-slate-100 px-2 py-0.5 rounded font-mono font-bold text-slate-900">
-                        {item.peso.toLocaleString('pt-BR')} kg
-                      </span>
-                      {item.cultura && (
-                        <span className="bg-slate-100 px-2 py-0.5 rounded font-medium text-slate-800">
-                          {item.cultura}
-                        </span>
-                      )}
-                      {item.cultivar && (
-                        <span className="bg-slate-100 px-2 py-0.5 rounded font-medium text-slate-800">
-                          {item.cultivar}
-                        </span>
-                      )}
-                    </div>
-
-                    {isChecked && item.conferidoEm && (
-                      <div className="text-[11px] text-emerald-700 flex items-center gap-1 font-medium pt-0.5">
-                        <Clock className="w-3 h-3" />
-                        <span>
-                          Conferido às {new Date(item.conferidoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} por {item.conferidoPor || 'Operador'}
-                        </span>
-                      </div>
-                    )}
+          <div className="space-y-2">
+            {divergencias.map(divItem => (
+              <div
+                key={divItem.id}
+                className="bg-red-50 border-2 border-red-300 rounded-2xl p-3.5 space-y-1.5 shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-black text-red-950 text-base">
+                      {divItem.loteLido}
+                    </span>
+                    <span className="text-[10px] font-black bg-red-200 text-red-900 px-2 py-0.5 rounded-full">
+                      NÃO PERTENCE À CARGA
+                    </span>
                   </div>
-
-                  {/* Big Action Button for One-Hand Operation */}
-                  <div className="w-full sm:w-auto flex-shrink-0">
-                    {isChecked ? (
-                      <button
-                        type="button"
-                        onClick={() => handleUncheckLot(item.lote)}
-                        className="w-full sm:w-auto bg-white hover:bg-red-50 text-slate-700 hover:text-red-700 font-bold text-xs py-2.5 px-4 rounded-xl border border-slate-300 flex items-center justify-center gap-1.5 transition-colors"
-                        id={`btn-desfazer-${item.lote}`}
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        Desfazer
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => executeCheckLot(item.lote)}
-                        className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-black text-sm py-3 px-6 rounded-xl shadow-md flex items-center justify-center gap-2 transition-transform active:scale-95"
-                        id={`btn-conferir-${item.lote}`}
-                      >
-                        <Check className="w-4 h-4 stroke-[3]" />
-                        CONFERIR
-                      </button>
-                    )}
-                  </div>
+                  <span className="text-xs text-red-700 font-mono">
+                    {new Date(divItem.dataHora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
                 </div>
-              );
-            })
-          )}
+                <div className="text-xs text-slate-600 flex flex-wrap gap-x-3 gap-y-0.5">
+                  <span>Operador: <strong>{divItem.operador}</strong></span>
+                  <span>Data: <strong>{new Date(divItem.dataHora).toLocaleDateString('pt-BR')}</strong></span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

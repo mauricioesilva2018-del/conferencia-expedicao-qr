@@ -378,20 +378,28 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       {/* ADMIN ONLY: User Management */}
       {isAdmin && (
         <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
-              <Users className="w-4 h-4 text-emerald-600" />
-              Gerenciamento de Usuários e Operadores
-            </h3>
-            <button
-              type="button"
-              onClick={() => setIsAddUserOpen(!isAddUserOpen)}
-              className="text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg flex items-center gap-1"
-              id="btn-toggle-add-user"
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              {isAddUserOpen ? 'Fechar' : 'Novo Usuário'}
-            </button>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                <Users className="w-4 h-4 text-emerald-600" />
+                Gerenciamento de Acessos & Senhas
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Crie acessos para operadores informando apenas <strong>Nome e Senha</strong>
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onNavigate('usuarios')}
+                className="text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow"
+                id="btn-abrir-modulo-acessos"
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                Abrir Módulo de Acessos
+              </button>
+            </div>
           </div>
 
           {userAdminMsg && (

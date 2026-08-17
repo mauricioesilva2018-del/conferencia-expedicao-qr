@@ -89,7 +89,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           {/* Usuário Input */}
           <div className="space-y-1.5">
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">
-              Usuário
+              Usuário ou Nome
             </label>
             <div className="relative">
               <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -97,7 +97,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 type="text"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
-                placeholder="Ex: administrador"
+                placeholder="Ex: administrador ou seu nome"
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck={false}

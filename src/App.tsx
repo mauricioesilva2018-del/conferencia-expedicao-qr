@@ -31,6 +31,7 @@ import { QRCodeScreen } from './components/QRCodeScreen';
 import { ConferenceScreen } from './components/ConferenceScreen';
 import { SavedExpeditionsScreen } from './components/SavedExpeditionsScreen';
 import { SettingsScreen } from './components/SettingsScreen';
+import { AccessManagementScreen } from './components/AccessManagementScreen';
 import { QRScannerModal } from './components/QRScannerModal';
 import { BatchBarcodeScannerModal } from './components/BatchBarcodeScannerModal';
 import { BatchImportModal } from './components/BatchImportModal';
@@ -333,6 +334,13 @@ export default function App() {
             onExportBackup={handleExportBackup}
             onImportBackup={handleImportBackup}
             onResetToDefaultLots={handleResetToDefaultLots}
+            onNavigate={handleNavigate}
+          />
+        )}
+
+        {currentScreen === 'usuarios' && (
+          <AccessManagementScreen
+            currentUser={currentUser}
             onNavigate={handleNavigate}
           />
         )}

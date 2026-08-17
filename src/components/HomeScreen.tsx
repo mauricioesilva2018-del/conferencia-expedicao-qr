@@ -8,11 +8,14 @@ import {
   FileSpreadsheet, 
   Settings, 
   Truck, 
-  ArrowRight,
-  ShieldCheck,
-  Zap,
-  Boxes,
-  Clock
+  ArrowRight, 
+  ShieldCheck, 
+  Zap, 
+  Boxes, 
+  Clock,
+  KeyRound,
+  Users,
+  UserPlus
 } from 'lucide-react';
 
 interface HomeScreenProps {
@@ -150,6 +153,30 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
             <div className="text-xs text-emerald-100 font-medium">
               Escanear QR da expedição e carregar no celular
+            </div>
+          </div>
+        </button>
+
+        {/* CRIAR ACESSOS (NOME E SENHA) */}
+        <button
+          onClick={() => onNavigate('usuarios')}
+          className="bg-white hover:bg-slate-50 active:bg-slate-100 border-2 border-slate-200 hover:border-emerald-500 rounded-2xl p-5 text-left shadow-sm transition-all flex flex-col justify-between group min-h-[135px]"
+          id="btn-home-criar-acessos"
+        >
+          <div className="flex items-start justify-between w-full">
+            <div className="w-12 h-12 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <KeyRound className="w-7 h-7" />
+            </div>
+            <span className="text-xs font-black text-purple-800 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
+              SENHAS
+            </span>
+          </div>
+          <div className="mt-3">
+            <div className="text-base font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+              CRIAR ACESSOS
+            </div>
+            <div className="text-xs text-slate-500 font-medium">
+              Cadastrar operadores com apenas Nome e Senha
             </div>
           </div>
         </button>
