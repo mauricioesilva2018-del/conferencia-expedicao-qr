@@ -157,6 +157,30 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         </button>
 
+        {/* GERENCIAR LISTA DE LOTES (LIMPAR / IMPORTAR / EXPORTAR) */}
+        <button
+          onClick={() => onNavigate('gerenciar_lotes')}
+          className="bg-white hover:bg-slate-50 active:bg-slate-100 border-2 border-emerald-500 rounded-2xl p-5 text-left shadow-sm hover:shadow-md transition-all flex flex-col justify-between group min-h-[135px] relative overflow-hidden"
+          id="btn-home-gerenciar-lotes"
+        >
+          <div className="flex items-start justify-between w-full">
+            <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <Boxes className="w-7 h-7" />
+            </div>
+            <span className="text-xs font-black text-emerald-800 bg-emerald-100/80 border border-emerald-300 px-2 py-0.5 rounded-full uppercase">
+              {totalLotes} LOTES
+            </span>
+          </div>
+          <div className="mt-3">
+            <div className="text-base font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+              GERENCIAR LISTA DE LOTES
+            </div>
+            <div className="text-xs text-slate-500 font-medium">
+              Limpar Lista • Importar Excel/CSV • Exportar Excel
+            </div>
+          </div>
+        </button>
+
         {/* CRIAR ACESSOS (NOME E SENHA) */}
         <button
           onClick={() => onNavigate('usuarios')}
@@ -201,30 +225,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
             <div className="text-xs text-slate-500 font-medium">
               Histórico local, status e reabertura
-            </div>
-          </div>
-        </button>
-
-        {/* IMPORTAR LOTES */}
-        <button
-          onClick={() => onNavigate('importar')}
-          className="bg-white hover:bg-slate-50 active:bg-slate-100 border-2 border-slate-200 hover:border-slate-400 rounded-2xl p-5 text-left shadow-sm transition-all flex flex-col justify-between group min-h-[135px]"
-          id="btn-home-importar-lotes"
-        >
-          <div className="flex items-start justify-between w-full">
-            <div className="w-12 h-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <FileSpreadsheet className="w-7 h-7" />
-            </div>
-            <span className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-              EXCEL / CSV
-            </span>
-          </div>
-          <div className="mt-3">
-            <div className="text-base font-black text-slate-900 tracking-tight">
-              IMPORTAR LOTES
-            </div>
-            <div className="text-xs text-slate-500 font-medium">
-              Importar arquivo de sementes ou colar tabela
             </div>
           </div>
         </button>

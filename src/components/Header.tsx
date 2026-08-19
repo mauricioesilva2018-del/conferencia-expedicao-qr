@@ -43,6 +43,7 @@ export const Header: React.FC<HeaderProps> = ({
       case 'editar_expedicao': return 'Editar Expedição';
       case 'qr_code': return 'QR Code da Expedição';
       case 'conferencia': return 'Conferência de Carga';
+      case 'gerenciar_lotes': return 'Gerenciamento da Lista de Lotes';
       case 'historico': return 'Expedições Salvas';
       case 'importar': return 'Importar Lotes';
       case 'configuracoes': return 'Configurações & Backup';

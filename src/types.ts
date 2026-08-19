@@ -3,8 +3,13 @@ export interface LoteItem {
   peneira: string;
   categoria: string;
   peso: number;
+  germinacao?: number | string; // Taxa de germinação (%)
+  vigor?: number | string;      // Índice de vigor (%)
   cultura?: string;
   cultivar?: string;
+  variedade?: string;
+  safra?: string;
+  observacao?: string;
   conferido?: boolean;
   conferidoEm?: string; // ISO String
   conferidoPor?: string;
@@ -21,6 +26,8 @@ export interface DivergenciaItem {
   peneira?: string;
   categoria?: string;
   peso?: number;
+  germinacao?: number | string;
+  vigor?: number | string;
 }
 
 export interface Expedicao {
@@ -77,4 +84,5 @@ export type ActiveScreen =
   | 'historico' 
   | 'importar' 
   | 'configuracoes'
-  | 'usuarios';
+  | 'usuarios'
+  | 'gerenciar_lotes';

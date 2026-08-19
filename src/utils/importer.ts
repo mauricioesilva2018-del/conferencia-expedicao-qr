@@ -4,7 +4,10 @@ import { LoteItem, ImportValidationResult } from '../types';
 /**
  * Parses raw text or array buffer into validated LoteItem list with diagnostics
  */
-export function validateAndParseLots(data: string | ArrayBuffer): ImportValidationResult {
+export function validateAndParseLots(
+  data: string | ArrayBuffer, 
+  options: { preventDuplicates?: boolean } = { preventDuplicates: true }
+): ImportValidationResult {
   const rawRows: string[][] = [];
 
   if (typeof data === 'string') {
@@ -18,12 +21,12 @@ export function validateAndParseLots(data: string | ArrayBuffer): ImportValidati
       if (trimmed.includes('|')) {
         cols = trimmed.split('|').map(c => c.trim());
       } else if (trimmed.includes(';')) {
-        cols = trimmed.split(';').map(c => c.trim());
+        cols = trimmed.split(';').map(c => c.trim().replace(/^["']|["']$/g, ''));
       } else if (trimmed.includes('\t')) {
-        cols = trimmed.split('\t').map(c => c.trim());
+        cols = trimmed.split('\t').map(c => c.trim().replace(/^["']|["']$/g, ''));
       } else if (trimmed.includes(',')) {
-        // Simple comma split (assuming no quoted inner commas)
-        cols = trimmed.split(',').map(c => c.trim());
+        // Simple comma split
+        cols = trimmed.split(',').map(c => c.trim().replace(/^["']|["']$/g, ''));
       } else {
         cols = trimmed.split(/\s{2,}/).map(c => c.trim());
       }
@@ -50,65 +53,195 @@ export function validateAndParseLots(data: string | ArrayBuffer): ImportValidati
   const lotesValidos: LoteItem[] = [];
   const erros: { linha: number; texto: string; motivo: string }[] = [];
   const loteCountMap = new Map<string, number>();
+  const seenLotCodes = new Set<string>();
 
-  let rowIndex = 0;
-  for (const cols of rawRows) {
-    rowIndex++;
-    // Check if header row (e.g. contains words like 'lote', 'peneira', 'categoria', 'peso')
-    const firstColLower = cols[0]?.toLowerCase() || '';
-    if (
-      rowIndex === 1 &&
-      (firstColLower.includes('lote') || firstColLower.includes('batch') || firstColLower.includes('item'))
-    ) {
-      continue; // Skip header
+  // Check if first row is a header row and map column indices
+  let colIndexMap = {
+    lote: -1,
+    peneira: -1,
+    categoria: -1,
+    peso: -1,
+    germinacao: -1,
+    vigor: -1,
+    cultura: -1,
+    cultivar: -1,
+    safra: -1,
+    observacao: -1,
+  };
+
+  const normalizeHeader = (str: string) =>
+    str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+  const parsePercentValue = (valStr: string | undefined): number | string | undefined => {
+    if (!valStr) return undefined;
+    const clean = valStr.trim();
+    if (!clean) return undefined;
+    
+    // Check if it has % or is numeric
+    const numOnly = clean.replace('%', '').replace(',', '.').trim();
+    const num = parseFloat(numOnly);
+    if (!isNaN(num)) {
+      // If Excel percentage like 0.85 -> 85
+      if (num > 0 && num <= 1 && clean.includes('.')) {
+        return Math.round(num * 100);
+      }
+      return num;
     }
+    return clean;
+  };
 
-    if (cols.length < 4) {
-      erros.push({
-        linha: rowIndex,
-        texto: cols.join(' | '),
-        motivo: `Colunas insuficientes (${cols.length}/4). Esperado: Lote | Peneira | Categoria | Peso.`,
+  let startIndex = 0;
+  if (rawRows.length > 0) {
+    const firstRow = rawRows[0].map(normalizeHeader);
+    
+    // Check if first row looks like a header
+    const hasHeaderKeywords = firstRow.some(c => 
+      c.includes('lote') || c.includes('batch') || c.includes('peneira') || 
+      c.includes('categoria') || c.includes('cat') || c.includes('peso') || c.includes('kg') || 
+      c.includes('etiqueta') || c.includes('bb') || c.includes('cultura') || 
+      c.includes('cultivar') || c.includes('variedade') || c.includes('item') || 
+      c.includes('vigor') || c.includes('germ')
+    );
+
+    if (hasHeaderKeywords) {
+      startIndex = 1;
+      firstRow.forEach((colName, idx) => {
+        if (colName.includes('lote') || colName === 'batch' || colName === 'codigo' || colName === 'cod' || colName === 'identificacao' || colName.includes('num')) {
+          colIndexMap.lote = idx;
+        } else if (colName.includes('peneira') || colName.includes('screen') || colName === 'tam' || colName.includes('calibre') || colName.includes('diametro')) {
+          colIndexMap.peneira = idx;
+        } else if (colName.includes('cat') || colName.includes('classe') || colName.includes('produzida')) {
+          colIndexMap.categoria = idx;
+        } else if (colName.includes('peso') || colName.includes('kg') || colName.includes('qtd') || colName.includes('quant') || colName.includes('etiqueta') || colName.includes('bb')) {
+          colIndexMap.peso = idx;
+        } else if (colName.includes('germ') || colName.includes('g%') || colName === 'tg' || colName.includes('t.g')) {
+          colIndexMap.germinacao = idx;
+        } else if (colName.includes('vigor') || colName.includes('vig') || colName.includes('v%') || colName.includes('tz') || colName.includes('tetrazolio')) {
+          colIndexMap.vigor = idx;
+        } else if (colName.includes('cultura') || colName.includes('especie') || colName === 'crop') {
+          colIndexMap.cultura = idx;
+        } else if (colName.includes('cultivar') || colName.includes('variedade') || colName.includes('var') || colName.includes('material') || colName.includes('hibrido') || colName.includes('cult')) {
+          colIndexMap.cultivar = idx;
+        } else if (colName.includes('safra') || colName.includes('colheita') || colName.includes('ano')) {
+          colIndexMap.safra = idx;
+        } else if (colName.includes('obs') || colName.includes('nota') || colName.includes('detalhe')) {
+          colIndexMap.observacao = idx;
+        }
       });
-      continue;
     }
+  }
 
-    const lote = cols[0].trim().toUpperCase();
-    const peneira = cols[1].trim();
-    const categoria = cols[2].trim();
-    const rawPeso = cols[3].trim().replace(/[^\d.,]/g, '').replace(',', '.');
-    const peso = parseFloat(rawPeso);
-    const cultura = cols[4] ? cols[4].trim() : undefined;
-    const cultivar = cols[5] ? cols[5].trim() : undefined;
+  for (let i = startIndex; i < rawRows.length; i++) {
+    const cols = rawRows[i];
+    const rowIndex = i + 1;
+
+    let lote = '';
+    let peneira = '5,75 mm';
+    let categoria = 'S1';
+    let rawPeso = '';
+    let germinacao: number | string | undefined = undefined;
+    let vigor: number | string | undefined = undefined;
+    let cultura: string | undefined = 'Soja';
+    let cultivar: string | undefined = undefined;
+    let safra: string | undefined = undefined;
+    let observacao: string | undefined = undefined;
+
+    // Use smart mapping if headers were found
+    if (colIndexMap.lote >= 0) {
+      lote = cols[colIndexMap.lote]?.trim().toUpperCase() || '';
+      if (colIndexMap.peneira >= 0 && cols[colIndexMap.peneira]) peneira = cols[colIndexMap.peneira].trim();
+      if (colIndexMap.categoria >= 0 && cols[colIndexMap.categoria]) categoria = cols[colIndexMap.categoria].trim();
+      if (colIndexMap.peso >= 0 && cols[colIndexMap.peso]) rawPeso = cols[colIndexMap.peso].trim();
+      if (colIndexMap.germinacao >= 0 && cols[colIndexMap.germinacao]) germinacao = parsePercentValue(cols[colIndexMap.germinacao]);
+      if (colIndexMap.vigor >= 0 && cols[colIndexMap.vigor]) vigor = parsePercentValue(cols[colIndexMap.vigor]);
+      if (colIndexMap.cultura >= 0 && cols[colIndexMap.cultura]) cultura = cols[colIndexMap.cultura].trim();
+      if (colIndexMap.cultivar >= 0 && cols[colIndexMap.cultivar]) cultivar = cols[colIndexMap.cultivar].trim();
+      if (colIndexMap.safra >= 0 && cols[colIndexMap.safra]) safra = cols[colIndexMap.safra].trim();
+      if (colIndexMap.observacao >= 0 && cols[colIndexMap.observacao]) observacao = cols[colIndexMap.observacao].trim();
+    } else {
+      // Positional fallback
+      if (cols.length < 2) {
+        erros.push({
+          linha: rowIndex,
+          texto: cols.join(' | '),
+          motivo: `Colunas insuficientes (${cols.length}). Esperado no mínimo: Lote e Peso (ou Lote | Peneira | Categoria | Peso | Germinação | Vigor).`,
+        });
+        continue;
+      }
+
+      // Check if 4+ columns
+      if (cols.length >= 6) {
+        lote = cols[0].trim().toUpperCase();
+        peneira = cols[1].trim() || '5,75 mm';
+        categoria = cols[2].trim() || 'S1';
+        rawPeso = cols[3].trim();
+        germinacao = parsePercentValue(cols[4]);
+        vigor = parsePercentValue(cols[5]);
+        cultura = cols[6] ? cols[6].trim() : 'Soja';
+        cultivar = cols[7] ? cols[7].trim() : undefined;
+      } else if (cols.length >= 4) {
+        lote = cols[0].trim().toUpperCase();
+        peneira = cols[1].trim() || '5,75 mm';
+        categoria = cols[2].trim() || 'S1';
+        rawPeso = cols[3].trim();
+        cultura = cols[4] ? cols[4].trim() : 'Soja';
+        cultivar = cols[5] ? cols[5].trim() : undefined;
+      } else if (cols.length === 2) {
+        // Simple [Lote, Peso]
+        lote = cols[0].trim().toUpperCase();
+        rawPeso = cols[1].trim();
+      } else if (cols.length === 3) {
+        // [Lote, Peneira, Peso]
+        lote = cols[0].trim().toUpperCase();
+        peneira = cols[1].trim() || '5,75 mm';
+        rawPeso = cols[2].trim();
+      }
+    }
 
     if (!lote) {
       erros.push({
         linha: rowIndex,
         texto: cols.join(' | '),
-        motivo: 'Número do lote está vazio.',
+        motivo: 'Número do lote não informado ou vazio.',
       });
       continue;
     }
+
+    const cleanPesoStr = rawPeso.replace(/[^\d.,]/g, '').replace(',', '.');
+    const peso = parseFloat(cleanPesoStr);
 
     if (isNaN(peso) || peso <= 0) {
       erros.push({
         linha: rowIndex,
         texto: cols.join(' | '),
-        motivo: `Peso inválido ou zerado: "${cols[3]}".`,
+        motivo: `Peso inválido ou zerado: "${rawPeso}".`,
       });
       continue;
     }
 
-    // Register occurrence for duplicate checking
+    // Register count for duplicate diagnostics
     const curCount = loteCountMap.get(lote) || 0;
     loteCountMap.set(lote, curCount + 1);
+
+    // If duplicate prevention is on and we already added this lote, skip adding duplicate
+    if (options.preventDuplicates && seenLotCodes.has(lote)) {
+      // It's recorded in duplicados map
+      continue;
+    }
+
+    seenLotCodes.add(lote);
 
     lotesValidos.push({
       lote,
       peneira: peneira || '5,75 mm',
       categoria: categoria || 'S1',
       peso,
+      germinacao,
+      vigor,
       cultura: cultura || 'Soja',
       cultivar: cultivar || undefined,
+      safra: safra || undefined,
+      observacao: observacao || undefined,
       conferido: false,
     });
   }

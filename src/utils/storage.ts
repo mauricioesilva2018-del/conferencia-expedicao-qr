@@ -41,14 +41,77 @@ export function getAllExpeditions(): Expedicao[] {
     if (raw) {
       const list = JSON.parse(raw);
       if (Array.isArray(list) && list.length > 0) {
-        return list;
+        let hasMigration = false;
+        // Build reference map from INITIAL_LOTS
+        const initialLotsMap = new Map(DEFAULT_INITIAL_EXPEDITION.lotes.map(l => [l.lote.toUpperCase(), l]));
+
+        const sanitizedList = list.map((exp: Expedicao) => {
+          let updatedExp = { ...exp };
+          if (exp.clienteDestino && (exp.clienteDestino.includes('Planalto Verde') || exp.clienteDestino.includes('Rio Verde/GO'))) {
+            hasMigration = true;
+            updatedExp.clienteDestino = 'UBS Barro Branco - MG';
+          }
+
+          // If this is the default expedition or contains initial lots, enrich lots with full spreadsheet data
+          if (exp.id === 'exp-default-001' || exp.id === DEFAULT_INITIAL_EXPEDITION.id) {
+            const existingLotMap = new Map((exp.lotes || []).map(l => [l.lote.toUpperCase(), l]));
+            
+            // Map over new INITIAL_LOTS, preserving checked status if user already checked
+            const mergedLots = DEFAULT_INITIAL_EXPEDITION.lotes.map(newLot => {
+              const existing = existingLotMap.get(newLot.lote.toUpperCase());
+              if (existing) {
+                return {
+                  ...newLot,
+                  conferido: existing.conferido,
+                  conferidoEm: existing.conferidoEm,
+                  conferidoPor: existing.conferidoPor,
+                  observacao: existing.observacao,
+                };
+              }
+              return newLot;
+            });
+
+            // If count or content differs, update
+            if (mergedLots.length !== (exp.lotes || []).length || !exp.lotes.some(l => l.germinacao !== undefined)) {
+              hasMigration = true;
+              updatedExp.lotes = mergedLots;
+            }
+          } else if (Array.isArray(exp.lotes)) {
+            // For custom expeditions, enrich missing fields from reference map
+            const updatedLots = exp.lotes.map(lot => {
+              const ref = initialLotsMap.get(lot.lote.toUpperCase());
+              if (ref && (lot.germinacao === undefined || lot.vigor === undefined || !lot.cultivar || lot.cultivar === 'Soja')) {
+                hasMigration = true;
+                return {
+                  ...lot,
+                  germinacao: lot.germinacao !== undefined ? lot.germinacao : ref.germinacao,
+                  vigor: lot.vigor !== undefined ? lot.vigor : ref.vigor,
+                  cultivar: ref.cultivar || lot.cultivar,
+                  variedade: ref.variedade || lot.variedade,
+                  categoria: ref.categoria || lot.categoria,
+                  peso: ref.peso || lot.peso,
+                  peneira: ref.peneira || lot.peneira,
+                };
+              }
+              return lot;
+            });
+            updatedExp.lotes = updatedLots;
+          }
+
+          return updatedExp;
+        });
+
+        if (hasMigration) {
+          saveAllExpeditions(sanitizedList);
+        }
+        return sanitizedList;
       }
     }
   } catch (e) {
     console.error('Error reading expeditions from localStorage:', e);
   }
 
-  // Initialize with the default initial 344-lot expedition if first time
+  // Initialize with the default initial spreadsheet expedition if first time
   const initialList: Expedicao[] = [DEFAULT_INITIAL_EXPEDITION];
   saveAllExpeditions(initialList);
   return initialList;

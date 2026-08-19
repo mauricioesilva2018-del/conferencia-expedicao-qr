@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Expedicao, LoteItem, ActiveScreen } from '../types';
 import { detectSequenceGaps, SequenceGapReport } from '../utils/importer';
+import { exportLotsToExcel } from '../utils/exportLots';
 import { 
   QrCode, 
   Plus, 
@@ -10,6 +11,7 @@ import {
   AlertTriangle, 
   Check, 
   FileSpreadsheet, 
+  Download,
   Boxes, 
   Save, 
   X,
@@ -58,6 +60,9 @@ export const ExpeditionForm: React.FC<ExpeditionFormProps> = ({
     peneira: '5,75 mm',
     categoria: 'S1',
     peso: '840',
+    germinacao: '',
+    vigor: '',
+    safra: '',
   });
   const [formError, setFormError] = useState('');
 
@@ -108,6 +113,9 @@ export const ExpeditionForm: React.FC<ExpeditionFormProps> = ({
       peneira: lotes.length > 0 ? lotes[lotes.length - 1].peneira : '5,75 mm',
       categoria: lotes.length > 0 ? lotes[lotes.length - 1].categoria : 'S1',
       peso: lotes.length > 0 ? String(lotes[lotes.length - 1].peso) : '840',
+      germinacao: '',
+      vigor: '',
+      safra: lotes.length > 0 ? (lotes[lotes.length - 1].safra || '') : '',
     });
     setFormError('');
     setIsLotModalOpen(true);
@@ -125,6 +133,9 @@ export const ExpeditionForm: React.FC<ExpeditionFormProps> = ({
         peneira: actualItem.peneira,
         categoria: actualItem.categoria,
         peso: String(actualItem.peso),
+        germinacao: actualItem.germinacao !== undefined ? String(actualItem.germinacao) : '',
+        vigor: actualItem.vigor !== undefined ? String(actualItem.vigor) : '',
+        safra: actualItem.safra || '',
       });
       setFormError('');
       setIsLotModalOpen(true);
@@ -139,6 +150,8 @@ export const ExpeditionForm: React.FC<ExpeditionFormProps> = ({
     const peneiraClean = lotForm.peneira.trim();
     const categoriaClean = lotForm.categoria.trim();
     const pesoNum = parseFloat(lotForm.peso.replace(',', '.'));
+    const germinacaoNum = lotForm.germinacao.trim() ? parseFloat(lotForm.germinacao.replace('%', '').replace(',', '.')) : undefined;
+    const vigorNum = lotForm.vigor.trim() ? parseFloat(lotForm.vigor.replace('%', '').replace(',', '.')) : undefined;
 
     if (!loteClean) {
       setFormError('Informe o número do lote.');
@@ -164,6 +177,9 @@ export const ExpeditionForm: React.FC<ExpeditionFormProps> = ({
       peneira: peneiraClean || '5,75 mm',
       categoria: categoriaClean || 'S1',
       peso: pesoNum,
+      germinacao: germinacaoNum !== undefined && !isNaN(germinacaoNum) ? germinacaoNum : (lotForm.germinacao.trim() || undefined),
+      vigor: vigorNum !== undefined && !isNaN(vigorNum) ? vigorNum : (lotForm.vigor.trim() || undefined),
+      safra: lotForm.safra.trim() || undefined,
       conferido: editingIndex !== null ? lotes[editingIndex].conferido : false,
       conferidoEm: editingIndex !== null ? lotes[editingIndex].conferidoEm : undefined,
       conferidoPor: editingIndex !== null ? lotes[editingIndex].conferidoPor : undefined,
@@ -187,9 +203,22 @@ export const ExpeditionForm: React.FC<ExpeditionFormProps> = ({
   };
 
   const handleClearAllLots = () => {
-    if (confirm('Tem certeza que deseja limpar TODOS os lotes cadastrados desta expedição?')) {
-      setLotes([]);
+    if (lotes.length === 0) {
+      alert('A lista de lotes já está vazia.');
+      return;
     }
+    if (confirm('Tem certeza que deseja apagar todos os lotes? Esta ação não poderá ser desfeita.')) {
+      setLotes([]);
+      setSelectedLots(new Set());
+    }
+  };
+
+  const handleExportLots = () => {
+    if (lotes.length === 0) {
+      alert('Não há lotes para exportar.');
+      return;
+    }
+    exportLotsToExcel(lotes, { numero, clienteDestino }, `Lotes_Exp_${numero || 'Nova'}`);
   };
 
   const handleToggleSelectAll = () => {
@@ -375,6 +404,28 @@ export const ExpeditionForm: React.FC<ExpeditionFormProps> = ({
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
+                onClick={handleClearAllLots}
+                className="bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-500/40 text-xs font-bold py-2 px-3 rounded-xl flex items-center gap-1.5 transition-colors"
+                id="btn-form-limpar-todos-lotes"
+                title="Limpar todos os lotes cadastrados"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                Limpar Lista
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportLots}
+                className="bg-slate-800 hover:bg-slate-700 text-blue-300 border border-blue-500/40 text-xs font-bold py-2 px-3 rounded-xl flex items-center gap-1.5 transition-colors"
+                id="btn-form-exportar-lotes-excel"
+                title="Exportar lista de lotes em arquivo Excel (.xlsx)"
+              >
+                <Download className="w-3.5 h-3.5 text-blue-400" />
+                Exportar Excel
+              </button>
+
+              <button
+                type="button"
                 onClick={onOpenImporter}
                 className="bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/40 text-xs font-bold py-2 px-3 rounded-xl flex items-center gap-1.5 transition-colors"
                 id="btn-form-importar-lotes"
@@ -523,9 +574,10 @@ export const ExpeditionForm: React.FC<ExpeditionFormProps> = ({
                     </th>
                     <th className="py-2.5 px-2">#</th>
                     <th className="py-2.5 px-3">Lote</th>
-                    <th className="py-2.5 px-3">Cultura / Cultivar</th>
-                    <th className="py-2.5 px-3">Peneira</th>
-                    <th className="py-2.5 px-3">Categoria</th>
+                    <th className="py-2.5 px-3">Cultura / Variedade</th>
+                    <th className="py-2.5 px-3">Peneira / Cat</th>
+                    <th className="py-2.5 px-3 text-center">🌱 Germ.</th>
+                    <th className="py-2.5 px-3 text-center">⚡ Vigor</th>
                     <th className="py-2.5 px-3 text-right">Peso (kg)</th>
                     <th className="py-2.5 px-3 text-center">Ações</th>
                   </tr>
@@ -554,18 +606,34 @@ export const ExpeditionForm: React.FC<ExpeditionFormProps> = ({
                           {item.lote}
                         </td>
                         <td className="py-2 px-3 text-slate-700">
-                          <div className="font-semibold text-slate-900">{item.cultura || 'Soja'}</div>
-                          {item.cultivar && (
-                            <div className="text-[11px] text-slate-500 font-mono">{item.cultivar}</div>
+                          <div className="font-semibold text-slate-900">{item.variedade || item.cultivar || item.cultura || 'Soja'}</div>
+                          {item.safra && (
+                            <div className="text-[11px] text-slate-500 font-mono">Safra: {item.safra}</div>
                           )}
                         </td>
                         <td className="py-2 px-3 text-slate-600 font-medium">
-                          {item.peneira}
-                        </td>
-                        <td className="py-2 px-3 font-semibold text-slate-700">
-                          <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-[11px]">
+                          <span>{item.peneira}</span>
+                          <span className="ml-1 px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-[11px] font-semibold text-slate-700">
                             {item.categoria}
                           </span>
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          {item.germinacao !== undefined && item.germinacao !== '' ? (
+                            <span className="font-mono font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded text-xs">
+                              {typeof item.germinacao === 'number' ? `${item.germinacao}%` : item.germinacao}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300">-</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          {item.vigor !== undefined && item.vigor !== '' ? (
+                            <span className="font-mono font-black text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded text-xs">
+                              {typeof item.vigor === 'number' ? `${item.vigor}%` : item.vigor}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300">-</span>
+                          )}
                         </td>
                         <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
                           {item.peso.toLocaleString('pt-BR')} kg
@@ -746,19 +814,63 @@ export const ExpeditionForm: React.FC<ExpeditionFormProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  PESO EM KG *
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  value={lotForm.peso}
-                  onChange={e => setLotForm({ ...lotForm, peso: e.target.value })}
-                  required
-                  placeholder="Ex: 843"
-                  className="w-full font-mono font-bold bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    PESO EM KG *
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={lotForm.peso}
+                    onChange={e => setLotForm({ ...lotForm, peso: e.target.value })}
+                    required
+                    placeholder="Ex: 843"
+                    className="w-full font-mono font-bold bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    SAFRA
+                  </label>
+                  <input
+                    type="text"
+                    value={lotForm.safra}
+                    onChange={e => setLotForm({ ...lotForm, safra: e.target.value })}
+                    placeholder="Ex: 2024/2025"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Qualidade da Semente */}
+              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <div>
+                  <label className="block text-xs font-bold text-emerald-800 mb-1">
+                    🌱 GERMINAÇÃO (%)
+                  </label>
+                  <input
+                    type="text"
+                    value={lotForm.germinacao}
+                    onChange={e => setLotForm({ ...lotForm, germinacao: e.target.value })}
+                    placeholder="Ex: 90"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 font-bold focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-blue-800 mb-1">
+                    ⚡ VIGOR (%)
+                  </label>
+                  <input
+                    type="text"
+                    value={lotForm.vigor}
+                    onChange={e => setLotForm({ ...lotForm, vigor: e.target.value })}
+                    placeholder="Ex: 85"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 font-bold focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
               </div>
 
               <div className="flex gap-2 pt-2">

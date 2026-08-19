@@ -96,6 +96,18 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
   const is100Percent = totalLotes > 0 && totalConferidos === totalLotes;
 
   // Auto-focus input on mount or tab change
+  const formatQualityPercent = (val: number | string | undefined): string => {
+    if (val === undefined || val === null || val === '') return 'Não informado';
+    if (typeof val === 'number') return `${val}%`;
+    const str = String(val).trim();
+    if (!str) return 'Não informado';
+    if (str.endsWith('%')) return str;
+    if (!isNaN(Number(str.replace(',', '.')))) {
+      return `${str}%`;
+    }
+    return str;
+  };
+
   useEffect(() => {
     if (activeTab === 'conferir') {
       setTimeout(() => {
@@ -531,9 +543,9 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
         )}
       </div>
 
-      {/* ======================================================== */}
+      {/* -------------------------------------------------------- */}
       {/* TAB 1: MAIN CONFERÊNCIA POR DIGITAÇÃO DO NÚMERO DO LOTE */}
-      {/* ======================================================== */}
+      {/* -------------------------------------------------------- */}
       {activeTab === 'conferir' && (
         <div className="space-y-3.5">
           {/* Main Large Input Card: Optimized for Android & Fast Warehouse Entry */}
@@ -616,9 +628,9 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
             </div>
           </div>
 
-          {/* ======================================================== */}
+          {/* -------------------------------------------------------- */}
           {/* 4 & 5 & 6 & 7 & 8: SE O LOTE EXISTIR E ESTIVER PENDENTE */}
-          {/* ======================================================== */}
+          {/* -------------------------------------------------------- */}
           {consultResult.status === 'found_pending' && consultResult.loteItem && (
             <div className="bg-white border-3 border-emerald-500 rounded-3xl p-4 sm:p-6 shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
               {/* Badge: Lote Encontrado */}
@@ -627,49 +639,80 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
                   <Sparkles className="w-4 h-4 text-emerald-600" />
                   LOTE LOCALIZADO NA EXPEDIÇÃO #{expedition.numero}
                 </span>
-                <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                <span className="text-xs font-black text-amber-800 bg-amber-100 px-3 py-1 rounded-full border border-amber-300">
                   STATUS: PENDENTE
                 </span>
               </div>
 
-              {/* 5. Número do Lote em Grande Destaque */}
-              <div className="text-center py-2 bg-slate-900 text-white rounded-2xl p-4 shadow-inner">
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-400 block mb-1">
-                  NÚMERO DO LOTE
+              {/* 1. Nome do Lote em Grande Destaque */}
+              <div className="text-center py-2.5 bg-slate-900 text-white rounded-2xl p-4 shadow-inner">
+                <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 block mb-1">
+                  1. NOME DO LOTE
                 </span>
                 <div className="font-mono font-black text-2xl sm:text-4xl text-emerald-400 tracking-wider">
                   {consultResult.loteItem.lote}
                 </div>
               </div>
 
-              {/* 4. Complete Lot Details */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs text-slate-800">
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                  <span className="text-[11px] font-bold text-slate-500 block uppercase">Peso</span>
-                  <strong className="text-base font-black text-slate-900 font-mono">
-                    {consultResult.loteItem.peso.toLocaleString('pt-BR')} kg
+              {/* Grid dos 7 Campos Oficiais Importados da Planilha */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs text-slate-800">
+                {/* 2. Germinação */}
+                <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-3 shadow-xs">
+                  <div className="flex items-center gap-1 text-emerald-900 mb-1">
+                    <span>🌱</span>
+                    <span className="text-[11px] font-black uppercase">Germinação</span>
+                  </div>
+                  <strong className="text-lg sm:text-2xl font-black text-emerald-800 font-mono block">
+                    {formatQualityPercent(consultResult.loteItem.germinacao)}
                   </strong>
                 </div>
 
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                  <span className="text-[11px] font-bold text-slate-500 block uppercase">Peneira</span>
-                  <strong className="text-base font-black text-slate-900 font-mono">
-                    {consultResult.loteItem.peneira || 'N/D'}
+                {/* 3. Vigor */}
+                <div className="bg-blue-50 border-2 border-blue-300 rounded-2xl p-3 shadow-xs">
+                  <div className="flex items-center gap-1 text-blue-900 mb-1">
+                    <span>⚡</span>
+                    <span className="text-[11px] font-black uppercase">Vigor</span>
+                  </div>
+                  <strong className="text-lg sm:text-2xl font-black text-blue-800 font-mono block">
+                    {formatQualityPercent(consultResult.loteItem.vigor)}
                   </strong>
                 </div>
 
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                  <span className="text-[11px] font-bold text-slate-500 block uppercase">Categoria</span>
-                  <strong className="text-base font-black text-slate-900">
-                    {consultResult.loteItem.categoria || 'N/D'}
+                {/* 4. Status */}
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 shadow-xs">
+                  <span className="text-[11px] font-bold text-slate-500 block uppercase mb-1">Status</span>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-900 border border-amber-300">
+                    PENDENTE
+                  </span>
+                </div>
+
+                {/* 5. Cultivar */}
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 shadow-xs">
+                  <span className="text-[11px] font-bold text-slate-500 block uppercase mb-1">Cultivar</span>
+                  <strong className="text-sm sm:text-base font-black text-slate-900 truncate block">
+                    {consultResult.loteItem.variedade || consultResult.loteItem.cultivar || consultResult.loteItem.cultura || 'Não informado'}
                   </strong>
                 </div>
 
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                  <span className="text-[11px] font-bold text-slate-500 block uppercase">Cultura / Híbrido</span>
-                  <strong className="text-sm font-black text-slate-900 truncate block">
-                    {consultResult.loteItem.cultivar || consultResult.loteItem.cultura || 'Padrão'}
+                {/* 6. Cat. Produzida */}
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 shadow-xs">
+                  <span className="text-[11px] font-bold text-slate-500 block uppercase mb-1">Cat. Produzida</span>
+                  <strong className="text-sm sm:text-base font-black text-slate-900 font-mono block">
+                    {consultResult.loteItem.categoria || 'Não informado'}
                   </strong>
+                </div>
+
+                {/* 7. BB Etiqueta (KG) */}
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 shadow-xs col-span-2 sm:col-span-1">
+                  <span className="text-[11px] font-bold text-slate-500 block uppercase mb-1">BB Etiqueta (KG)</span>
+                  <strong className="text-base sm:text-lg font-black text-slate-900 font-mono block">
+                    {consultResult.loteItem.peso ? `${consultResult.loteItem.peso.toLocaleString('pt-BR')} kg` : 'Não informado'}
+                  </strong>
+                  {consultResult.loteItem.peneira && (
+                    <span className="text-[10px] text-slate-500 font-medium block">
+                      Peneira: {consultResult.loteItem.peneira}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -694,11 +737,11 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
             </div>
           )}
 
-          {/* ======================================================== */}
+          {/* -------------------------------------------------------- */}
           {/* 10. SUCESSO: "✅ LOTE CONFERIDO COM SUCESSO" */}
-          {/* ======================================================== */}
+          {/* -------------------------------------------------------- */}
           {consultResult.status === 'success_registered' && consultResult.loteItem && (
-            <div className="bg-emerald-600 text-white rounded-3xl p-5 shadow-xl space-y-3 animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-emerald-600 text-white rounded-3xl p-5 shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-white text-emerald-600 flex items-center justify-center flex-shrink-0 font-black shadow">
                   <Check className="w-6 h-6 stroke-[3.5]" />
@@ -708,50 +751,121 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
                     ✅ LOTE CONFERIDO COM SUCESSO
                   </h3>
                   <p className="text-xs text-emerald-100">
-                    Registrado na base de dados. Digite o próximo lote acima.
+                    Registrado na base de dados. Digite ou escaneie o próximo lote acima.
                   </p>
                 </div>
               </div>
 
-              <div className="bg-emerald-700/80 rounded-2xl p-3 text-xs space-y-1.5 text-emerald-50 font-medium">
-                <div className="flex justify-between border-b border-emerald-600/60 pb-1 font-mono">
-                  <span>Lote:</span>
-                  <strong className="text-white font-black text-sm">{consultResult.loteItem.lote}</strong>
+              <div className="bg-emerald-700/80 rounded-2xl p-4 text-xs space-y-2 text-emerald-50 font-medium border border-emerald-500">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div className="bg-emerald-800/60 p-2.5 rounded-xl">
+                    <span className="text-[10px] text-emerald-200 block uppercase">1. Lote</span>
+                    <strong className="text-white font-mono text-sm font-black">{consultResult.loteItem.lote}</strong>
+                  </div>
+                  <div className="bg-emerald-800/60 p-2.5 rounded-xl">
+                    <span className="text-[10px] text-emerald-200 block uppercase">2. Germinação</span>
+                    <strong className="text-white font-mono text-sm font-black">{formatQualityPercent(consultResult.loteItem.germinacao)}</strong>
+                  </div>
+                  <div className="bg-emerald-800/60 p-2.5 rounded-xl">
+                    <span className="text-[10px] text-emerald-200 block uppercase">3. Vigor</span>
+                    <strong className="text-white font-mono text-sm font-black">{formatQualityPercent(consultResult.loteItem.vigor)}</strong>
+                  </div>
+                  <div className="bg-emerald-800/60 p-2.5 rounded-xl">
+                    <span className="text-[10px] text-emerald-200 block uppercase">4. Status</span>
+                    <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black bg-white text-emerald-900">CONFERIDO</span>
+                  </div>
                 </div>
-                <div className="flex justify-between border-b border-emerald-600/60 pb-1">
-                  <span>Data e Hora:</span>
-                  <strong className="text-white">
-                    {consultResult.loteItem.conferidoEm ? new Date(consultResult.loteItem.conferidoEm).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR')}
-                  </strong>
+
+                <div className="grid grid-cols-3 gap-2 text-xs pt-1 border-t border-emerald-600/60">
+                  <div>
+                    <span className="text-[10px] text-emerald-200 block">5. Cultivar:</span>
+                    <strong className="text-white">{consultResult.loteItem.variedade || consultResult.loteItem.cultivar || consultResult.loteItem.cultura || 'Não informado'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-emerald-200 block">6. Cat. Produzida:</span>
+                    <strong className="text-white">{consultResult.loteItem.categoria || 'Não informado'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-emerald-200 block">7. BB Etiqueta (KG):</span>
+                    <strong className="text-white">{consultResult.loteItem.peso ? `${consultResult.loteItem.peso.toLocaleString('pt-BR')} kg` : '0 kg'}</strong>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span>Operador:</span>
-                  <strong className="text-white">{consultResult.loteItem.conferidoPor || operatorName}</strong>
+
+                <div className="flex flex-wrap justify-between border-t border-emerald-600/60 pt-2 text-[11px]">
+                  <span>📅 Data/Hora: <strong>{consultResult.loteItem.conferidoEm ? new Date(consultResult.loteItem.conferidoEm).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR')}</strong></span>
+                  <span>👤 Operador: <strong>{consultResult.loteItem.conferidoPor || operatorName}</strong></span>
                 </div>
               </div>
             </div>
           )}
 
-          {/* ======================================================== */}
+          {/* -------------------------------------------------------- */}
           {/* 11. AVISO: "⚠️ LOTE JÁ CONFERIDO" */}
-          {/* ======================================================== */}
+          {/* -------------------------------------------------------- */}
           {consultResult.status === 'already_checked' && consultResult.loteItem && (
             <div className="bg-amber-50 border-3 border-amber-400 rounded-3xl p-4 sm:p-5 shadow-lg space-y-3.5 animate-in fade-in duration-150">
-              <div className="flex items-center gap-2 text-amber-900">
-                <AlertTriangle className="w-6 h-6 text-amber-600 flex-shrink-0" />
-                <h3 className="font-black text-base sm:text-lg">
-                  ⚠️ LOTE JÁ CONFERIDO
-                </h3>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-amber-900">
+                  <AlertTriangle className="w-6 h-6 text-amber-600 flex-shrink-0" />
+                  <h3 className="font-black text-base sm:text-lg">
+                    ⚠️ LOTE JÁ CONFERIDO
+                  </h3>
+                </div>
+                <span className="px-2.5 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-300">
+                  STATUS: CONFERIDO
+                </span>
               </div>
 
-              {/* Destaque do Lote */}
-              <div className="bg-white rounded-2xl p-4 border border-amber-200 shadow-sm space-y-2 text-xs text-slate-800">
+              {/* Destaque do Lote com os 7 campos */}
+              <div className="bg-white rounded-2xl p-4 border border-amber-200 shadow-sm space-y-3 text-xs text-slate-800">
                 <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-                  <span className="text-slate-500 font-bold uppercase">Número do Lote:</span>
-                  <span className="font-mono font-black text-slate-900 text-lg">{consultResult.loteItem.lote}</span>
+                  <span className="text-slate-500 font-bold uppercase">1. Número do Lote:</span>
+                  <span className="font-mono font-black text-slate-900 text-xl">{consultResult.loteItem.lote}</span>
                 </div>
 
-                <div className="space-y-1.5 pt-1">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  <div className="bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
+                    <span className="text-[10px] font-bold text-emerald-900 uppercase block">2. Germinação</span>
+                    <strong className="text-base font-black text-emerald-800 font-mono">
+                      {formatQualityPercent(consultResult.loteItem.germinacao)}
+                    </strong>
+                  </div>
+
+                  <div className="bg-blue-50 p-2.5 rounded-xl border border-blue-200">
+                    <span className="text-[10px] font-bold text-blue-900 uppercase block">3. Vigor</span>
+                    <strong className="text-base font-black text-blue-800 font-mono">
+                      {formatQualityPercent(consultResult.loteItem.vigor)}
+                    </strong>
+                  </div>
+
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">4. Status</span>
+                    <strong className="text-xs font-black text-emerald-800">CONFERIDO</strong>
+                  </div>
+
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">5. Cultivar</span>
+                    <strong className="text-xs font-black text-slate-900 truncate block">
+                      {consultResult.loteItem.variedade || consultResult.loteItem.cultivar || consultResult.loteItem.cultura || 'Não informado'}
+                    </strong>
+                  </div>
+
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">6. Cat. Produzida</span>
+                    <strong className="text-xs font-black text-slate-900 font-mono block">
+                      {consultResult.loteItem.categoria || 'Não informado'}
+                    </strong>
+                  </div>
+
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">7. BB Etiqueta (KG)</span>
+                    <strong className="text-xs font-black text-slate-900 font-mono block">
+                      {consultResult.loteItem.peso ? `${consultResult.loteItem.peso.toLocaleString('pt-BR')} kg` : '0 kg'}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="space-y-1 pt-2 border-t border-slate-100 text-[11px]">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Data e Hora da Conferência:</span>
                     <strong className="font-mono text-slate-900 font-bold">
@@ -765,13 +879,6 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
                     <span className="text-slate-500">Operador Responsável:</span>
                     <strong className="text-slate-900">
                       {consultResult.loteItem.conferidoPor || 'Operador'}
-                    </strong>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Peso / Peneira / Categoria:</span>
-                    <strong className="text-slate-900 font-mono">
-                      {consultResult.loteItem.peso} kg &middot; {consultResult.loteItem.peneira} &middot; {consultResult.loteItem.categoria}
                     </strong>
                   </div>
                 </div>
@@ -790,9 +897,9 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
             </div>
           )}
 
-          {/* ======================================================== */}
+          {/* -------------------------------------------------------- */}
           {/* 12. ERRO: "❌ LOTE NÃO ENCONTRADO" */}
-          {/* ======================================================== */}
+          {/* -------------------------------------------------------- */}
           {consultResult.status === 'not_found' && (
             <div className="bg-red-600 text-white rounded-3xl p-5 shadow-xl space-y-3 animate-in shake duration-300">
               <div className="flex items-center gap-3">
@@ -828,9 +935,9 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
         </div>
       )}
 
-      {/* ======================================================== */}
+      {/* -------------------------------------------------------- */}
       {/* TAB 2: SEÇÃO "CONFERÊNCIAS REALIZADAS" (Requirement 16) */}
-      {/* ======================================================== */}
+      {/* -------------------------------------------------------- */}
       {activeTab === 'realizadas' && (
         <div className="space-y-3">
           <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
@@ -864,29 +971,44 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
                 return (
                   <div
                     key={`${item.lote}-${idx}`}
-                    className="bg-white border-2 border-emerald-200 rounded-2xl p-3.5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    className="bg-white border-2 border-emerald-200 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3.5"
                   >
-                    <div className="space-y-1 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-black text-base sm:text-lg text-slate-900">
+                    <div className="space-y-2 flex-1">
+                      {/* Top: 1. Nome do Lote & 4. Status */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono font-black text-lg text-slate-900">
                           {item.lote}
                         </span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900 flex items-center gap-1">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900 flex items-center gap-1 border border-emerald-300">
                           <Check className="w-3 h-3 stroke-[3]" />
                           CONFERIDO
                         </span>
+                        {item.variedade || item.cultivar ? (
+                          <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-xs font-semibold">
+                            Cultivar: <strong>{item.variedade || item.cultivar}</strong>
+                          </span>
+                        ) : null}
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                        <span className="bg-slate-100 px-2 py-0.5 rounded font-mono font-bold text-slate-800">
-                          {item.peso.toLocaleString('pt-BR')} kg
+                      {/* Middle: 2. Germinação, 3. Vigor, 6. Cat, 7. BB Etiqueta KG */}
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-700">
+                        <span className="bg-emerald-50 text-emerald-900 border border-emerald-300 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1">
+                          <span>🌱</span> Germ: <strong className="font-mono">{formatQualityPercent(item.germinacao)}</strong>
                         </span>
-                        <span className="bg-slate-100 px-2 py-0.5 rounded">
-                          Peneira: <strong className="text-slate-800">{item.peneira}</strong>
+                        <span className="bg-blue-50 text-blue-900 border border-blue-300 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1">
+                          <span>⚡</span> Vigor: <strong className="font-mono">{formatQualityPercent(item.vigor)}</strong>
                         </span>
-                        <span className="bg-slate-100 px-2 py-0.5 rounded">
-                          Cat: <strong className="text-slate-800">{item.categoria}</strong>
+                        <span className="bg-slate-100 px-2.5 py-1 rounded-lg font-mono font-bold text-slate-800 border border-slate-200">
+                          BB: {item.peso ? `${item.peso.toLocaleString('pt-BR')} kg` : '0 kg'}
                         </span>
+                        <span className="bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 text-[11px]">
+                          Cat: <strong className="text-slate-800">{item.categoria || 'N/D'}</strong>
+                        </span>
+                        {item.peneira && (
+                          <span className="bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 text-[11px]">
+                            Peneira: <strong className="text-slate-800">{item.peneira}</strong>
+                          </span>
+                        )}
                       </div>
 
                       {confDate && (
@@ -901,7 +1023,7 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
                     <button
                       type="button"
                       onClick={() => handleUncheckLot(item.lote)}
-                      className="bg-slate-50 hover:bg-red-50 text-slate-600 hover:text-red-700 font-bold text-xs py-2 px-3 rounded-xl border border-slate-200 hover:border-red-200 flex items-center justify-center gap-1 transition-colors self-end sm:self-center"
+                      className="bg-slate-50 hover:bg-red-50 text-slate-600 hover:text-red-700 font-bold text-xs py-2.5 px-3.5 rounded-xl border border-slate-200 hover:border-red-200 flex items-center justify-center gap-1 transition-colors self-end sm:self-center"
                       title="Desfazer conferência deste lote"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
@@ -915,9 +1037,9 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
         </div>
       )}
 
-      {/* ======================================================== */}
+      {/* -------------------------------------------------------- */}
       {/* TAB 3: LOTES PENDENTES */}
-      {/* ======================================================== */}
+      {/* -------------------------------------------------------- */}
       {activeTab === 'pendentes' && (
         <div className="space-y-3">
           <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
@@ -949,28 +1071,43 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
               {pendingList.map((item, idx) => (
                 <div
                   key={`${item.lote}-${idx}`}
-                  className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  className="bg-white border-2 border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3.5"
                 >
-                  <div className="space-y-1 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-black text-base sm:text-lg text-slate-900">
+                  <div className="space-y-2 flex-1">
+                    {/* Top: 1. Nome do Lote & 4. Status */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono font-black text-lg text-slate-900">
                         {item.lote}
                       </span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
                         PENDENTE
                       </span>
+                      {item.variedade || item.cultivar ? (
+                        <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-xs font-semibold">
+                          Cultivar: <strong>{item.variedade || item.cultivar}</strong>
+                        </span>
+                      ) : null}
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                      <span className="bg-slate-100 px-2 py-0.5 rounded font-mono font-bold text-slate-800">
-                        {item.peso.toLocaleString('pt-BR')} kg
+                    {/* Middle: 2. Germinação, 3. Vigor, 6. Cat, 7. BB Etiqueta KG */}
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-700">
+                      <span className="bg-emerald-50 text-emerald-900 border border-emerald-300 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1">
+                        <span>🌱</span> Germ: <strong className="font-mono">{formatQualityPercent(item.germinacao)}</strong>
                       </span>
-                      <span className="bg-slate-100 px-2 py-0.5 rounded">
-                        Peneira: <strong className="text-slate-800">{item.peneira}</strong>
+                      <span className="bg-blue-50 text-blue-900 border border-blue-300 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1">
+                        <span>⚡</span> Vigor: <strong className="font-mono">{formatQualityPercent(item.vigor)}</strong>
                       </span>
-                      <span className="bg-slate-100 px-2 py-0.5 rounded">
-                        Cat: <strong className="text-slate-800">{item.categoria}</strong>
+                      <span className="bg-slate-100 px-2.5 py-1 rounded-lg font-mono font-bold text-slate-800 border border-slate-200">
+                        BB: {item.peso ? `${item.peso.toLocaleString('pt-BR')} kg` : '0 kg'}
                       </span>
+                      <span className="bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 text-[11px]">
+                        Cat: <strong className="text-slate-800">{item.categoria || 'N/D'}</strong>
+                      </span>
+                      {item.peneira && (
+                        <span className="bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 text-[11px]">
+                          Peneira: <strong className="text-slate-800">{item.peneira}</strong>
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -981,7 +1118,7 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
                       setActiveTab('conferir');
                       handleConsultLot(item.lote);
                     }}
-                    className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 px-4 rounded-xl flex items-center justify-center gap-1.5 self-end sm:self-center shadow"
+                    className="bg-slate-900 hover:bg-slate-800 active:bg-black text-white font-bold text-xs py-3 px-4 rounded-xl flex items-center justify-center gap-2 self-end sm:self-center shadow-sm"
                   >
                     <Search className="w-3.5 h-3.5 text-emerald-400" />
                     Conferir Este
@@ -993,9 +1130,9 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
         </div>
       )}
 
-      {/* ======================================================== */}
+      {/* -------------------------------------------------------- */}
       {/* TAB 4: DIVERGÊNCIAS */}
-      {/* ======================================================== */}
+      {/* -------------------------------------------------------- */}
       {activeTab === 'divergencias' && (
         <div className="space-y-3">
           <div className="flex justify-between items-center px-1">

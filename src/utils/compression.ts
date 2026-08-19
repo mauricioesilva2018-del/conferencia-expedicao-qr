@@ -61,7 +61,12 @@ export function encodeExpeditionToQR(expedicao: Expedicao): { payload: string; s
       item.conferidoEm || '',
       item.conferidoPor || '',
       item.cultura || '',
-      item.cultivar || ''
+      item.cultivar || '',
+      item.germinacao ?? '',
+      item.vigor ?? '',
+      item.variedade || '',
+      item.safra || '',
+      item.observacao || ''
     ])
   };
 
@@ -102,6 +107,8 @@ export function encodeSingleLotToQR(lot: LoteItem): string {
     p: lot.peneira || '',
     c: lot.categoria || '',
     w: lot.peso || 0,
+    g: lot.germinacao ?? '',
+    v: lot.vigor ?? '',
     cu: lot.cultura || '',
     cv: lot.cultivar || ''
   };
@@ -149,6 +156,8 @@ export function decodeScannedCode(payload: string): ScannedResult {
           peneira: String(obj.p || '5,75 mm'),
           categoria: String(obj.c || 'S1'),
           peso: Number(obj.w || 0),
+          germinacao: obj.g !== undefined && obj.g !== '' ? obj.g : (obj.germinacao !== undefined ? obj.germinacao : undefined),
+          vigor: obj.v !== undefined && obj.v !== '' ? obj.v : (obj.vigor !== undefined ? obj.vigor : undefined),
           cultura: obj.cu ? String(obj.cu) : undefined,
           cultivar: obj.cv ? String(obj.cv) : undefined,
         }
@@ -243,6 +252,11 @@ export function decodeQRToExpedition(payload: string): Expedicao {
         conferidoPor: arr[6] ? String(arr[6]) : undefined,
         cultura: arr[7] ? String(arr[7]) : undefined,
         cultivar: arr[8] ? String(arr[8]) : undefined,
+        germinacao: arr[9] !== undefined && arr[9] !== '' ? arr[9] : undefined,
+        vigor: arr[10] !== undefined && arr[10] !== '' ? arr[10] : undefined,
+        variedade: arr[11] ? String(arr[11]) : undefined,
+        safra: arr[12] ? String(arr[12]) : undefined,
+        observacao: arr[13] ? String(arr[13]) : undefined,
       }));
 
       return {
@@ -292,6 +306,11 @@ export function decodeQRToExpedition(payload: string): Expedicao {
           conferidoPor: l.conferidoPor,
           cultura: l.cultura || undefined,
           cultivar: l.cultivar || undefined,
+          germinacao: l.germinacao !== undefined && l.germinacao !== '' ? l.germinacao : undefined,
+          vigor: l.vigor !== undefined && l.vigor !== '' ? l.vigor : undefined,
+          variedade: l.variedade || undefined,
+          safra: l.safra || undefined,
+          observacao: l.observacao || undefined,
         })),
         divergencias: directObj.divergencias || undefined,
       };

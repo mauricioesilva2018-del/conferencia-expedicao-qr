@@ -32,6 +32,7 @@ import { ConferenceScreen } from './components/ConferenceScreen';
 import { SavedExpeditionsScreen } from './components/SavedExpeditionsScreen';
 import { SettingsScreen } from './components/SettingsScreen';
 import { AccessManagementScreen } from './components/AccessManagementScreen';
+import { LotManagementScreen } from './components/LotManagementScreen';
 import { QRScannerModal } from './components/QRScannerModal';
 import { BatchBarcodeScannerModal } from './components/BatchBarcodeScannerModal';
 import { BatchImportModal } from './components/BatchImportModal';
@@ -315,15 +316,12 @@ export default function App() {
           />
         )}
 
-        {currentScreen === 'importar' && (
-          <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-4">
-            <button
-              onClick={() => setIsImporterOpen(true)}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 px-6 rounded-2xl shadow-lg flex items-center justify-center gap-2"
-            >
-              Abrir Importador de Lotes
-            </button>
-          </div>
+        {(currentScreen === 'gerenciar_lotes' || currentScreen === 'importar') && (
+          <LotManagementScreen
+            expedition={activeExpedition}
+            onUpdateExpedition={handleUpdateExpedition}
+            onNavigate={handleNavigate}
+          />
         )}
 
         {currentScreen === 'configuracoes' && (
