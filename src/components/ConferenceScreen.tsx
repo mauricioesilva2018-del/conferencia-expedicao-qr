@@ -654,9 +654,9 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
                 </div>
               </div>
 
-              {/* Grid dos 7 Campos Oficiais Importados da Planilha */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs text-slate-800">
-                {/* 2. Germinação */}
+              {/* Grid dos Campos Oficiais: Germinação, Vigor, Peneira, Status, Cultivar, Cat, BB Etiqueta */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs text-slate-800">
+                {/* Germinação */}
                 <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-3 shadow-xs">
                   <div className="flex items-center gap-1 text-emerald-900 mb-1">
                     <span>🌱</span>
@@ -667,7 +667,7 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
                   </strong>
                 </div>
 
-                {/* 3. Vigor */}
+                {/* Vigor */}
                 <div className="bg-blue-50 border-2 border-blue-300 rounded-2xl p-3 shadow-xs">
                   <div className="flex items-center gap-1 text-blue-900 mb-1">
                     <span>⚡</span>
@@ -678,7 +678,18 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
                   </strong>
                 </div>
 
-                {/* 4. Status */}
+                {/* Peneira (Destaque Principal) */}
+                <div className="bg-purple-50 border-2 border-purple-300 rounded-2xl p-3 shadow-xs">
+                  <div className="flex items-center gap-1 text-purple-900 mb-1">
+                    <span>🔘</span>
+                    <span className="text-[11px] font-black uppercase">Peneira</span>
+                  </div>
+                  <strong className="text-base sm:text-xl font-black text-purple-900 font-mono block">
+                    {consultResult.loteItem.peneira || (consultResult.loteItem.lote.toUpperCase().startsWith('2') ? '6,75 mm' : '5,75 mm')}
+                  </strong>
+                </div>
+
+                {/* Status */}
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 shadow-xs">
                   <span className="text-[11px] font-bold text-slate-500 block uppercase mb-1">Status</span>
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-900 border border-amber-300">
@@ -686,15 +697,15 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
                   </span>
                 </div>
 
-                {/* 5. Cultivar */}
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 shadow-xs">
+                {/* Cultivar */}
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 shadow-xs col-span-2 sm:col-span-2">
                   <span className="text-[11px] font-bold text-slate-500 block uppercase mb-1">Cultivar</span>
                   <strong className="text-sm sm:text-base font-black text-slate-900 truncate block">
                     {consultResult.loteItem.variedade || consultResult.loteItem.cultivar || consultResult.loteItem.cultura || 'Não informado'}
                   </strong>
                 </div>
 
-                {/* 6. Cat. Produzida */}
+                {/* Cat. Produzida */}
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 shadow-xs">
                   <span className="text-[11px] font-bold text-slate-500 block uppercase mb-1">Cat. Produzida</span>
                   <strong className="text-sm sm:text-base font-black text-slate-900 font-mono block">
@@ -702,17 +713,12 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
                   </strong>
                 </div>
 
-                {/* 7. BB Etiqueta (KG) */}
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 shadow-xs col-span-2 sm:col-span-1">
+                {/* BB Etiqueta (KG) */}
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 shadow-xs">
                   <span className="text-[11px] font-bold text-slate-500 block uppercase mb-1">BB Etiqueta (KG)</span>
                   <strong className="text-base sm:text-lg font-black text-slate-900 font-mono block">
                     {consultResult.loteItem.peso ? `${consultResult.loteItem.peso.toLocaleString('pt-BR')} kg` : 'Não informado'}
                   </strong>
-                  {consultResult.loteItem.peneira && (
-                    <span className="text-[10px] text-slate-500 font-medium block">
-                      Peneira: {consultResult.loteItem.peneira}
-                    </span>
-                  )}
                 </div>
               </div>
 
@@ -770,23 +776,25 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
                     <span className="text-[10px] text-emerald-200 block uppercase">3. Vigor</span>
                     <strong className="text-white font-mono text-sm font-black">{formatQualityPercent(consultResult.loteItem.vigor)}</strong>
                   </div>
-                  <div className="bg-emerald-800/60 p-2.5 rounded-xl">
-                    <span className="text-[10px] text-emerald-200 block uppercase">4. Status</span>
-                    <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black bg-white text-emerald-900">CONFERIDO</span>
+                  <div className="bg-purple-900/60 border border-purple-400/40 p-2.5 rounded-xl">
+                    <span className="text-[10px] text-purple-200 block uppercase font-bold">🔘 Peneira</span>
+                    <strong className="text-white font-mono text-sm font-black">
+                      {consultResult.loteItem.peneira || (consultResult.loteItem.lote.toUpperCase().startsWith('2') ? '6,75 mm' : '5,75 mm')}
+                    </strong>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 text-xs pt-1 border-t border-emerald-600/60">
                   <div>
-                    <span className="text-[10px] text-emerald-200 block">5. Cultivar:</span>
+                    <span className="text-[10px] text-emerald-200 block">Cultivar:</span>
                     <strong className="text-white">{consultResult.loteItem.variedade || consultResult.loteItem.cultivar || consultResult.loteItem.cultura || 'Não informado'}</strong>
                   </div>
                   <div>
-                    <span className="text-[10px] text-emerald-200 block">6. Cat. Produzida:</span>
+                    <span className="text-[10px] text-emerald-200 block">Cat. Produzida:</span>
                     <strong className="text-white">{consultResult.loteItem.categoria || 'Não informado'}</strong>
                   </div>
                   <div>
-                    <span className="text-[10px] text-emerald-200 block">7. BB Etiqueta (KG):</span>
+                    <span className="text-[10px] text-emerald-200 block">BB Etiqueta (KG):</span>
                     <strong className="text-white">{consultResult.loteItem.peso ? `${consultResult.loteItem.peso.toLocaleString('pt-BR')} kg` : '0 kg'}</strong>
                   </div>
                 </div>
@@ -816,14 +824,14 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
                 </span>
               </div>
 
-              {/* Destaque do Lote com os 7 campos */}
+              {/* Destaque do Lote com os campos */}
               <div className="bg-white rounded-2xl p-4 border border-amber-200 shadow-sm space-y-3 text-xs text-slate-800">
                 <div className="flex justify-between items-center border-b border-slate-100 pb-2">
                   <span className="text-slate-500 font-bold uppercase">1. Número do Lote:</span>
                   <span className="font-mono font-black text-slate-900 text-xl">{consultResult.loteItem.lote}</span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   <div className="bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
                     <span className="text-[10px] font-bold text-emerald-900 uppercase block">2. Germinação</span>
                     <strong className="text-base font-black text-emerald-800 font-mono">
@@ -838,27 +846,34 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
                     </strong>
                   </div>
 
-                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block">4. Status</span>
-                    <strong className="text-xs font-black text-emerald-800">CONFERIDO</strong>
+                  <div className="bg-purple-50 p-2.5 rounded-xl border border-purple-200">
+                    <span className="text-[10px] font-bold text-purple-900 uppercase block">🔘 Peneira</span>
+                    <strong className="text-base font-black text-purple-900 font-mono">
+                      {consultResult.loteItem.peneira || (consultResult.loteItem.lote.toUpperCase().startsWith('2') ? '6,75 mm' : '5,75 mm')}
+                    </strong>
                   </div>
 
                   <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block">5. Cultivar</span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Status</span>
+                    <strong className="text-xs font-black text-emerald-800">CONFERIDO</strong>
+                  </div>
+
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 col-span-2">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Cultivar</span>
                     <strong className="text-xs font-black text-slate-900 truncate block">
                       {consultResult.loteItem.variedade || consultResult.loteItem.cultivar || consultResult.loteItem.cultura || 'Não informado'}
                     </strong>
                   </div>
 
                   <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block">6. Cat. Produzida</span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Cat. Produzida</span>
                     <strong className="text-xs font-black text-slate-900 font-mono block">
                       {consultResult.loteItem.categoria || 'Não informado'}
                     </strong>
                   </div>
 
                   <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block">7. BB Etiqueta (KG)</span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">BB Etiqueta (KG)</span>
                     <strong className="text-xs font-black text-slate-900 font-mono block">
                       {consultResult.loteItem.peso ? `${consultResult.loteItem.peso.toLocaleString('pt-BR')} kg` : '0 kg'}
                     </strong>
@@ -990,7 +1005,7 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
                         ) : null}
                       </div>
 
-                      {/* Middle: 2. Germinação, 3. Vigor, 6. Cat, 7. BB Etiqueta KG */}
+                      {/* Middle: 2. Germinação, 3. Vigor, Peneira, 6. Cat, 7. BB Etiqueta KG */}
                       <div className="flex flex-wrap items-center gap-2 text-xs text-slate-700">
                         <span className="bg-emerald-50 text-emerald-900 border border-emerald-300 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1">
                           <span>🌱</span> Germ: <strong className="font-mono">{formatQualityPercent(item.germinacao)}</strong>
@@ -998,17 +1013,15 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
                         <span className="bg-blue-50 text-blue-900 border border-blue-300 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1">
                           <span>⚡</span> Vigor: <strong className="font-mono">{formatQualityPercent(item.vigor)}</strong>
                         </span>
+                        <span className="bg-purple-50 text-purple-900 border border-purple-300 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1">
+                          <span>🔘</span> Peneira: <strong className="font-mono">{item.peneira || (item.lote.toUpperCase().startsWith('2') ? '6,75 mm' : '5,75 mm')}</strong>
+                        </span>
                         <span className="bg-slate-100 px-2.5 py-1 rounded-lg font-mono font-bold text-slate-800 border border-slate-200">
                           BB: {item.peso ? `${item.peso.toLocaleString('pt-BR')} kg` : '0 kg'}
                         </span>
                         <span className="bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 text-[11px]">
                           Cat: <strong className="text-slate-800">{item.categoria || 'N/D'}</strong>
                         </span>
-                        {item.peneira && (
-                          <span className="bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 text-[11px]">
-                            Peneira: <strong className="text-slate-800">{item.peneira}</strong>
-                          </span>
-                        )}
                       </div>
 
                       {confDate && (
@@ -1089,7 +1102,7 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
                       ) : null}
                     </div>
 
-                    {/* Middle: 2. Germinação, 3. Vigor, 6. Cat, 7. BB Etiqueta KG */}
+                    {/* Middle: 2. Germinação, 3. Vigor, Peneira, 6. Cat, 7. BB Etiqueta KG */}
                     <div className="flex flex-wrap items-center gap-2 text-xs text-slate-700">
                       <span className="bg-emerald-50 text-emerald-900 border border-emerald-300 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1">
                         <span>🌱</span> Germ: <strong className="font-mono">{formatQualityPercent(item.germinacao)}</strong>
@@ -1097,17 +1110,15 @@ export const ConferenceScreen: React.FC<ConferenceScreenProps> = ({
                       <span className="bg-blue-50 text-blue-900 border border-blue-300 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1">
                         <span>⚡</span> Vigor: <strong className="font-mono">{formatQualityPercent(item.vigor)}</strong>
                       </span>
+                      <span className="bg-purple-50 text-purple-900 border border-purple-300 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1">
+                        <span>🔘</span> Peneira: <strong className="font-mono">{item.peneira || (item.lote.toUpperCase().startsWith('2') ? '6,75 mm' : '5,75 mm')}</strong>
+                      </span>
                       <span className="bg-slate-100 px-2.5 py-1 rounded-lg font-mono font-bold text-slate-800 border border-slate-200">
                         BB: {item.peso ? `${item.peso.toLocaleString('pt-BR')} kg` : '0 kg'}
                       </span>
                       <span className="bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 text-[11px]">
                         Cat: <strong className="text-slate-800">{item.categoria || 'N/D'}</strong>
                       </span>
-                      {item.peneira && (
-                        <span className="bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 text-[11px]">
-                          Peneira: <strong className="text-slate-800">{item.peneira}</strong>
-                        </span>
-                      )}
                     </div>
                   </div>
 

@@ -80,7 +80,8 @@ export function getAllExpeditions(): Expedicao[] {
             // For custom expeditions, enrich missing fields from reference map
             const updatedLots = exp.lotes.map(lot => {
               const ref = initialLotsMap.get(lot.lote.toUpperCase());
-              if (ref && (lot.germinacao === undefined || lot.vigor === undefined || !lot.cultivar || lot.cultivar === 'Soja')) {
+              const defaultPeneira = lot.peneira || (ref ? ref.peneira : (lot.lote.toUpperCase().startsWith('2') ? '6,75 mm' : '5,75 mm'));
+              if (ref && (lot.germinacao === undefined || lot.vigor === undefined || !lot.cultivar || lot.cultivar === 'Soja' || !lot.peneira)) {
                 hasMigration = true;
                 return {
                   ...lot,
@@ -90,7 +91,14 @@ export function getAllExpeditions(): Expedicao[] {
                   variedade: ref.variedade || lot.variedade,
                   categoria: ref.categoria || lot.categoria,
                   peso: ref.peso || lot.peso,
-                  peneira: ref.peneira || lot.peneira,
+                  peneira: defaultPeneira,
+                };
+              }
+              if (!lot.peneira) {
+                hasMigration = true;
+                return {
+                  ...lot,
+                  peneira: defaultPeneira,
                 };
               }
               return lot;
